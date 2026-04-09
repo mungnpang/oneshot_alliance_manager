@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oneshot Admin — Supanova 시안</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.min.css">
+  <script src="https://code.iconify.design/iconify-icon/2.3.0/iconify-icon.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            gold: {
+              DEFAULT: '#d4af37',
+              mid: '#c9a84c',
+              dim: '#c9a84c88',
+              faint: '#c9a84c2a',
+              glow: '#d4af3720',
+            }
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background: #080d1e;
+      color: #f0e8d0;
+      overflow-x: hidden;
+    }
+
+    /* Grain overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+      opacity: 0.025;
+    }
+
+    /* Background mesh */
+    .bg-mesh {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 15% 20%, #1a2f6633 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 85% 70%, #0d1f4422 0%, transparent 55%),
+        radial-gradient(ellipse 100% 80% at 50% 50%, #0a0f2200 0%, #050812 100%);
+    }
+
+    /* Stars */
+    .stars {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .star {
+      position: absolute;
+      border-radius: 50%;
+      background: #fff;
+      animation: twinkle var(--dur, 3s) ease-in-out infinite var(--delay, 0s);
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: var(--min-op, 0.1); }
+      50% { opacity: var(--max-op, 0.7); }
+    }
+
+    /* Layout */
+    .shell {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      border-right: 1px solid #c9a84c18;
+      background: linear-gradient(180deg, #0b1128cc 0%, #070d1ecc 100%);
+      backdrop-filter: blur(24px);
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 28px 24px 20px;
+      border-bottom: 1px solid #c9a84c18;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #d4af37, #c9a84c, #b8932a);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 16px #d4af3730, inset 0 1px 0 rgba(255,255,255,0.2);
+      flex-shrink: 0;
+    }
+
+    .logo-name {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #f0e8d0;
+    }
+
+    .logo-sub {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: #b8a07066;
+      text-transform: uppercase;
+      margin-top: 1px;
+    }
+
+    .nav-section {
+      padding: 16px 12px;
+      flex: 1;
+    }
+
+    .nav-label {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #b8a07055;
+      font-weight: 600;
+      padding: 0 12px;
+      margin-bottom: 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #c9a08088;
+      text-decoration: none;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+      margin-bottom: 2px;
+      position: relative;
+    }
+
+    .nav-item:hover {
+      color: #f0e8d0;
+      background: #c9a84c0d;
+    }
+
+    .nav-item.active {
+      color: #d4af37;
+      background: linear-gradient(90deg, #d4af370f, #d4af3705);
+      font-weight: 600;
+    }
+
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 20px;
+      background: linear-gradient(180deg, #d4af37, #c9a84c);
+      border-radius: 0 3px 3px 0;
+    }
+
+    .nav-icon {
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+
+    .nav-item.active .nav-icon { opacity: 1; }
+
+    .sidebar-footer {
+      padding: 16px 12px 20px;
+      border-top: 1px solid #c9a84c12;
+    }
+
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #b8a07066;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'Pretendard', sans-serif;
+    }
+
+    .logout-btn:hover {
+      color: #ff8080;
+      background: #ff606011;
+    }
+
+    /* Main content */
+    .main {
+      flex: 1;
+      padding: 36px 40px;
+      overflow-y: auto;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+    }
+
+    .page-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #f0e8d0;
+      line-height: 1.2;
+    }
+
+    .page-subtitle {
+      font-size: 13px;
+      color: #b8a07066;
+      margin-top: 3px;
+      letter-spacing: 0.01em;
+    }
+
+    .btn-gold {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: #080d1e;
+      background: linear-gradient(135deg, #d4b84a, #d4af37, #b8932a);
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 16px #d4af3730, inset 0 1px 0 rgba(255,255,255,0.15);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'Pretendard', sans-serif;
+    }
+
+    .btn-gold:hover {
+      transform: scale(1.02);
+      box-shadow: 0 4px 24px #d4af3748, inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+
+    .btn-gold:active { transform: scale(0.98); }
+
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #b8a070aa;
+      background: transparent;
+      border: 1px solid #c9a84c33;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'Pretendard', sans-serif;
+    }
+
+    .btn-ghost:hover {
+      color: #f0e8d0;
+      border-color: #c9a84c66;
+      background: #c9a84c08;
+    }
+
+    .btn-danger {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #ff8080aa;
+      background: transparent;
+      border: 1px solid #ff606030;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      font-family: 'Pretendard', sans-serif;
+    }
+
+    .btn-danger:hover {
+      color: #ff8080;
+      background: #ff606015;
+      border-color: #ff606055;
+    }
+
+    /* ── Double-Bezel Card ── */
+    .card-bezel {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid #c9a84c18;
+      border-radius: 18px;
+      padding: 2px;
+      box-shadow: 0 20px 60px -15px rgba(0,0,0,0.5), 0 0 0 1px #d4af3710;
+    }
+
+    .card-inner {
+      background: linear-gradient(145deg, #111828cc, #0a1020dd);
+      border-radius: 16px;
+      padding: 22px 24px;
+      box-shadow: inset 0 1px 0 rgba(212,175,55,0.08);
+    }
+
+    /* Stat cards */
+    .stat-card .card-inner {
+      padding: 20px 22px 22px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #b8a07066;
+      margin-bottom: 10px;
+    }
+
+    .stat-value {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      color: #d4af37;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat-meta {
+      font-size: 12px;
+      color: #b8a07055;
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .stat-up {
+      color: #6fdc8c99;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* Table card */
+    .table-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid #c9a84c18;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px -15px rgba(0,0,0,0.4), 0 0 0 1px #d4af3708;
+    }
+
+    .table-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid #c9a84c12;
+    }
+
+    .table-card-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: #e8d8a0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead th {
+      padding: 12px 20px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #b8a07055;
+      text-align: left;
+      border-bottom: 1px solid #c9a84c0d;
+      white-space: nowrap;
+    }
+
+    thead th.center { text-align: center; }
+
+    tbody tr {
+      transition: background 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+    }
+
+    tbody tr:hover {
+      background: #d4af3706;
+    }
+
+    tbody td {
+      padding: 14px 20px;
+      font-size: 14px;
+      color: #e0d4b4;
+      border-bottom: 1px solid #c9a84c09;
+      vertical-align: middle;
+    }
+
+    tbody td.center { text-align: center; }
+    tbody td.muted { color: #b8a07066; font-size: 13px; }
+    tbody td.desc {
+      color: #b8a07099;
+      font-size: 13px;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+
+    /* Event image cell */
+    .thumb-cell {
+      width: 52px;
+      padding: 10px 0 10px 20px !important;
+    }
+
+    .thumb-wrap {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: #d4af3710;
+      border: 1px solid #d4af3720;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .thumb-wrap img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+    }
+
+    /* Weight badge */
+    .weight-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      background: #d4af370d;
+      color: #d4af3799;
+      border: 1px solid #d4af3720;
+    }
+
+    /* Occurrence tag */
+    .occ-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+      background: #c9a84c08;
+      color: #b8a07088;
+      border: 1px solid #c9a84c15;
+      transition: all 0.2s;
+    }
+
+    tbody tr:hover .occ-tag {
+      color: #d4af37bb;
+      border-color: #d4af3730;
+      background: #d4af370d;
+    }
+
+    /* Eyebrow pill */
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: #d4af370d;
+      color: #d4af3799;
+      border: 1px solid #d4af3720;
+      margin-bottom: 12px;
+    }
+
+    /* Page tabs */
+    .tab-bar {
+      display: flex;
+      gap: 2px;
+      background: #0b1128;
+      border: 1px solid #c9a84c18;
+      border-radius: 12px;
+      padding: 4px;
+      margin-bottom: 28px;
+      width: fit-content;
+    }
+
+    .tab {
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #b8a07066;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .tab.active {
+      background: linear-gradient(135deg, #1e2d55, #151f40);
+      color: #d4af37;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 #d4af3715;
+    }
+
+    /* Divider */
+    .section-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #c9a84c18, transparent);
+      margin: 32px 0;
+    }
+
+    /* Recent list items */
+    .list-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 11px 0;
+      border-bottom: 1px solid #c9a84c0d;
+      transition: all 0.2s;
+    }
+
+    .list-item:last-child { border-bottom: none; }
+
+    .list-name {
+      font-size: 14px;
+      color: #e0d4b4;
+      font-weight: 500;
+    }
+
+    .list-meta {
+      font-size: 12px;
+      color: #b8a07055;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Scroll fade in animation */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+        filter: blur(3px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0);
+      }
+    }
+
+    .fade-in {
+      animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    .fade-in-1 { animation-delay: 0ms; }
+    .fade-in-2 { animation-delay: 60ms; }
+    .fade-in-3 { animation-delay: 120ms; }
+    .fade-in-4 { animation-delay: 180ms; }
+    .fade-in-5 { animation-delay: 240ms; }
+    .fade-in-6 { animation-delay: 300ms; }
+
+    /* Tab switcher */
+    .page-view { display: none; }
+    .page-view.active { display: block; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #c9a84c22; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: #c9a84c44; }
+  </style>
+</head>
+<body>
+
+<!-- Background layers -->
+<div class="bg-mesh"></div>
+<div class="stars" id="stars"></div>
+
+<div class="shell">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="logo-icon">
+          <iconify-icon icon="solar:crown-bold" style="font-size:16px; color:#080d1e;"></iconify-icon>
+        </div>
+        <div>
+          <div class="logo-name">Oneshot</div>
+        </div>
+      </div>
+      <div class="logo-sub">Alliance Manager</div>
+    </div>
+
+    <nav class="nav-section">
+      <div class="nav-label">메뉴</div>
+
+      <a class="nav-item" onclick="switchPage('dashboard', this)">
+        <span class="nav-icon">
+          <iconify-icon icon="solar:widget-2-linear" style="font-size:16px;"></iconify-icon>
+        </span>
+        Dashboard
+      </a>
+      <a class="nav-item" onclick="switchPage('members', this)">
+        <span class="nav-icon">
+          <iconify-icon icon="solar:users-group-rounded-linear" style="font-size:16px;"></iconify-icon>
+        </span>
+        Member Management
+      </a>
+      <a class="nav-item" onclick="switchPage('alliances', this)">
+        <span class="nav-icon">
+          <iconify-icon icon="solar:shield-star-linear" style="font-size:16px;"></iconify-icon>
+        </span>
+        Alliance Management
+      </a>
+      <a class="nav-item active" onclick="switchPage('events', this)">
+        <span class="nav-icon">
+          <iconify-icon icon="solar:calendar-bold" style="font-size:16px;"></iconify-icon>
+        </span>
+        Event Management
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button class="logout-btn">
+        <iconify-icon icon="solar:logout-2-linear" style="font-size:15px;"></iconify-icon>
+        Logout
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <!-- Dashboard Page -->
+    <div id="page-dashboard" class="page-view">
+      <div class="page-header fade-in fade-in-1">
+        <div>
+          <div class="eyebrow">
+            <iconify-icon icon="solar:widget-2-bold" style="font-size:12px;"></iconify-icon>
+            Overview
+          </div>
+          <div class="page-title">Dashboard</div>
+          <div class="page-subtitle">킹샷 동맹 현황을 한눈에 확인하세요</div>
+        </div>
+      </div>
+
+      <!-- Bento Grid Stats -->
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px;">
+        <div class="card-bezel stat-card fade-in fade-in-2">
+          <div class="card-inner">
+            <div class="stat-label">Total Members</div>
+            <div class="stat-value">48</div>
+            <div class="stat-meta">
+              <iconify-icon icon="solar:users-group-rounded-linear" style="font-size:12px; color:#d4af3760;"></iconify-icon>
+              <span>전체 멤버</span>
+              <span class="stat-up">↑ 3</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-bezel stat-card fade-in fade-in-3">
+          <div class="card-inner">
+            <div class="stat-label">Alliances</div>
+            <div class="stat-value">7</div>
+            <div class="stat-meta">
+              <iconify-icon icon="solar:shield-star-linear" style="font-size:12px; color:#d4af3760;"></iconify-icon>
+              <span>활성 동맹</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-bezel stat-card fade-in fade-in-4">
+          <div class="card-inner">
+            <div class="stat-label">Events</div>
+            <div class="stat-value">11</div>
+            <div class="stat-meta">
+              <iconify-icon icon="solar:calendar-linear" style="font-size:12px; color:#d4af3760;"></iconify-icon>
+              <span>등록된 이벤트</span>
+            </div>
+          </div>
+        </div>
+        <div class="card-bezel stat-card fade-in fade-in-5">
+          <div class="card-inner">
+            <div class="stat-label">Admins</div>
+            <div class="stat-value">3</div>
+            <div class="stat-meta">
+              <iconify-icon icon="solar:crown-linear" style="font-size:12px; color:#d4af3760;"></iconify-icon>
+              <span>관리자</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Grid -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;" class="fade-in fade-in-6">
+        <div class="table-card">
+          <div class="table-card-header">
+            <div class="table-card-title">최근 합류 멤버</div>
+            <span style="font-size:11px; color:#b8a07055;">최근 5명</span>
+          </div>
+          <div style="padding: 4px 0 8px;">
+            <div class="list-item" style="padding-left:24px; padding-right:24px;">
+              <div class="list-name">하윤서</div>
+              <div class="list-meta">#3842</div>
+            </div>
+            <div class="list-item" style="padding-left:24px; padding-right:24px;">
+              <div class="list-name">박도현</div>
+              <div class="list-meta">#2971</div>
+            </div>
+            <div class="list-item" style="padding-left:24px; padding-right:24px;">
+              <div class="list-name">이서진</div>
+              <div class="list-meta">#4401</div>
+            </div>
+            <div class="list-item" style="padding-left:24px; padding-right:24px;">
+              <div class="list-name">김하늘</div>
+              <div class="list-meta">#1887</div>
+            </div>
+            <div class="list-item" style="padding-left:24px; padding-right:24px;">
+              <div class="list-name">정민준</div>
+              <div class="list-meta">#5523</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-card-header">
+            <div class="table-card-title">등록된 이벤트</div>
+            <span style="font-size:11px; color:#b8a07055;">총 11개</span>
+          </div>
+          <div style="padding: 4px 0 8px;">
+            <div class="list-item" style="padding-left:24px; padding-right:24px;">
+              <div class="list-name">Bear Trap</div>
+              <div class="list-meta" style="color:#d4af3766;">×1.0</div>
+            </div>
+            <div class="list-item" style="padding-left:24px; padding-right:24px;">
+              <div class="list-name">Viking Vengeance</div>
+              <div class="list-meta" style="color:#d4af3766;">×1.5</div>
+            </div>
+            <div class="list-item" style="padding-left:24px; padding-right:24px;">
+              <div class="list-name">Kingdom of Power</div>
+              <div class="list-meta" style="color:#d4af3766;">×2.0</div>
+            </div>
+            <div class="list-item" style="padding-left:24px; padding-right:24px;">
+              <div class="list-name">Hall of Heroes</div>
+              <div class="list-meta" style="color:#d4af3766;">×1.0</div>
+            </div>
+            <div class="list-item" style="padding-left:24px; padding-right:24px;">
+              <div class="list-name">Strongest Governor</div>
+              <div class="list-meta" style="color:#d4af3766;">×1.0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Members Page -->
+    <div id="page-members" class="page-view">
+      <div class="page-header fade-in fade-in-1">
+        <div>
+          <div class="eyebrow">
+            <iconify-icon icon="solar:users-group-rounded-bold" style="font-size:12px;"></iconify-icon>
+            Members
+          </div>
+          <div class="page-title">Member Management</div>
+          <div class="page-subtitle">동맹 멤버 목록 및 관리</div>
+        </div>
+        <button class="btn-gold">
+          <iconify-icon icon="solar:add-circle-linear" style="font-size:15px;"></iconify-icon>
+          멤버 추가
+        </button>
+      </div>
+      <div class="table-card fade-in fade-in-2">
+        <table>
+          <thead>
+            <tr>
+              <th>닉네임</th>
+              <th>KID</th>
+              <th>FID</th>
+              <th class="center">관리자</th>
+              <th class="center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span style="font-weight:600;">하윤서</span></td>
+              <td class="muted">3842</td>
+              <td class="muted">fid:100241</td>
+              <td class="center"><span style="color:#6fdc8c88; font-size:12px;">—</span></td>
+              <td class="center">
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button class="btn-ghost">수정</button>
+                  <button class="btn-danger">삭제</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><span style="font-weight:600;">박도현</span></td>
+              <td class="muted">2971</td>
+              <td class="muted">fid:100388</td>
+              <td class="center">
+                <span style="display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; background:#d4af370d; color:#d4af37aa; border:1px solid #d4af3722;">
+                  <iconify-icon icon="solar:crown-bold" style="font-size:10px;"></iconify-icon>
+                  Admin
+                </span>
+              </td>
+              <td class="center">
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button class="btn-ghost">수정</button>
+                  <button class="btn-danger">삭제</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><span style="font-weight:600;">이서진</span></td>
+              <td class="muted">4401</td>
+              <td class="muted">fid:100512</td>
+              <td class="center"><span style="color:#6fdc8c88; font-size:12px;">—</span></td>
+              <td class="center">
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button class="btn-ghost">수정</button>
+                  <button class="btn-danger">삭제</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Alliances Page -->
+    <div id="page-alliances" class="page-view">
+      <div class="page-header fade-in fade-in-1">
+        <div>
+          <div class="eyebrow">
+            <iconify-icon icon="solar:shield-star-bold" style="font-size:12px;"></iconify-icon>
+            Alliances
+          </div>
+          <div class="page-title">Alliance Management</div>
+          <div class="page-subtitle">동맹 구성 및 멤버 배치 관리</div>
+        </div>
+        <button class="btn-gold">
+          <iconify-icon icon="solar:add-circle-linear" style="font-size:15px;"></iconify-icon>
+          동맹 추가
+        </button>
+      </div>
+      <div class="table-card fade-in fade-in-2">
+        <table>
+          <thead>
+            <tr>
+              <th>동맹명</th>
+              <th>태그</th>
+              <th class="center">멤버 수</th>
+              <th class="center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span style="font-weight:600;">스텔라 동맹</span></td>
+              <td><span class="weight-badge">[STL]</span></td>
+              <td class="center muted">12명</td>
+              <td class="center">
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button class="btn-ghost">수정</button>
+                  <button class="btn-danger">삭제</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><span style="font-weight:600;">베리파이 군단</span></td>
+              <td><span class="weight-badge">[VFY]</span></td>
+              <td class="center muted">9명</td>
+              <td class="center">
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button class="btn-ghost">수정</button>
+                  <button class="btn-danger">삭제</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td><span style="font-weight:600;">루미너스 연합</span></td>
+              <td><span class="weight-badge">[LMN]</span></td>
+              <td class="center muted">15명</td>
+              <td class="center">
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button class="btn-ghost">수정</button>
+                  <button class="btn-danger">삭제</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Events Page (active by default) -->
+    <div id="page-events" class="page-view active">
+      <div class="page-header fade-in fade-in-1">
+        <div>
+          <div class="eyebrow">
+            <iconify-icon icon="solar:calendar-bold" style="font-size:12px;"></iconify-icon>
+            Events
+          </div>
+          <div class="page-title">Event Management</div>
+          <div class="page-subtitle">이벤트 등록 및 회차 관리</div>
+        </div>
+        <button class="btn-gold">
+          <iconify-icon icon="solar:add-circle-linear" style="font-size:15px;"></iconify-icon>
+          이벤트 등록
+        </button>
+      </div>
+
+      <div class="table-card fade-in fade-in-2">
+        <table>
+          <colgroup>
+            <col style="width: 52px;">
+            <col style="width: 22%;">
+            <col style="width: 8%;">
+            <col style="width: auto;">
+            <col style="width: 14%;">
+            <col style="width: 16%;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th></th>
+              <th>이벤트명</th>
+              <th class="center">Weight</th>
+              <th>Description</th>
+              <th class="center">Occurrences</th>
+              <th class="center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <tr>
+              <td class="thumb-cell">
+                <div class="thumb-wrap">
+                  <img src="/images/icon_event_bear-hunt.webp" alt="" onerror="this.style.display='none'">
+                </div>
+              </td>
+              <td style="font-weight:600;">Bear Trap</td>
+              <td class="center"><span class="weight-badge">×1.0</span></td>
+              <td class="desc">곰 사냥 이벤트. 동맹원 협력 필수.</td>
+              <td class="center">
+                <span class="occ-tag">
+                  <iconify-icon icon="solar:calendar-minimalistic-linear" style="font-size:11px;"></iconify-icon>
+                  Expand List
+                </span>
+              </td>
+              <td class="center">
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button class="btn-ghost">수정</button>
+                  <button class="btn-danger">삭제</button>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="thumb-cell">
+                <div class="thumb-wrap">
+                  <img src="/images/icon_event_viking-vengeance.webp" alt="" onerror="this.style.display='none'">
+                </div>
+              </td>
+              <td style="font-weight:600;">Viking Vengeance</td>
+              <td class="center"><span class="weight-badge">×1.5</span></td>
+              <td class="desc">바이킹 복수전. 주간 이벤트.</td>
+              <td class="center">
+                <span class="occ-tag">
+                  <iconify-icon icon="solar:calendar-minimalistic-linear" style="font-size:11px;"></iconify-icon>
+                  Expand List
+                </span>
+              </td>
+              <td class="center">
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button class="btn-ghost">수정</button>
+                  <button class="btn-danger">삭제</button>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="thumb-cell">
+                <div class="thumb-wrap">
+                  <img src="/images/icon_event_kingdom-of-power.webp" alt="" onerror="this.style.display='none'">
+                </div>
+              </td>
+              <td style="font-weight:600;">Kingdom of Power</td>
+              <td class="center"><span class="weight-badge" style="color:#d4af37cc; border-color:#d4af3740; background:#d4af3715;">×2.0</span></td>
+              <td class="desc">왕국의 힘. 고배율 핵심 이벤트.</td>
+              <td class="center">
+                <span class="occ-tag">
+                  <iconify-icon icon="solar:calendar-minimalistic-linear" style="font-size:11px;"></iconify-icon>
+                  Expand List
+                </span>
+              </td>
+              <td class="center">
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button class="btn-ghost">수정</button>
+                  <button class="btn-danger">삭제</button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- expanded row sample -->
+            <tr>
+              <td colspan="6" style="padding: 0; border-bottom: none;">
+                <div style="margin: 0 16px 16px; padding: 20px 24px; border-radius: 14px; background: linear-gradient(145deg, #0e1a3a99, #0b1228cc); border: 1px solid #c9a84c18; box-shadow: inset 0 1px 0 #d4af3708;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding-bottom:14px; margin-bottom:16px; border-bottom:1px solid #c9a84c0d;">
+                    <span style="font-size:11px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase; color:#b8a07066;">
+                      2 Occurrences · Kingdom of Power
+                    </span>
+                    <button class="btn-gold" style="padding:6px 14px; font-size:12px;">
+                      <iconify-icon icon="solar:add-circle-linear" style="font-size:13px;"></iconify-icon>
+                      Add Occurrence
+                    </button>
+                  </div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style="font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:#b8a07044; padding:8px 14px;">Start</th>
+                        <th style="font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:#b8a07044; padding:8px 14px;">End</th>
+                        <th style="font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:#b8a07044; padding:8px 14px;">Label</th>
+                        <th style="font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:#b8a07044; padding:8px 14px;">Note</th>
+                        <th style="font-size:10px; letter-spacing:0.06em; text-transform:uppercase; color:#b8a07044; padding:8px 14px; text-align:center;">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td style="font-size:13px; color:#c8bea0; padding:10px 14px; border-bottom:1px solid #c9a84c09;">2026-03-10</td>
+                        <td style="font-size:13px; color:#c8bea0; padding:10px 14px; border-bottom:1px solid #c9a84c09;">2026-03-16</td>
+                        <td style="font-size:13px; color:#c8bea0; padding:10px 14px; border-bottom:1px solid #c9a84c09;">2026-W11-1</td>
+                        <td style="font-size:13px; color:#b8a07077; padding:10px 14px; border-bottom:1px solid #c9a84c09;">—</td>
+                        <td style="padding:10px 14px; border-bottom:1px solid #c9a84c09; text-align:center;">
+                          <div style="display:flex; gap:20px; justify-content:center;">
+                            <a href="#" style="font-size:12px; color:#d4af3799; text-decoration:none; display:flex; align-items:center; gap:4px; transition:color 0.2s;">
+                              <iconify-icon icon="solar:clipboard-list-linear" style="font-size:13px;"></iconify-icon>
+                              참가 기록
+                            </a>
+                            <button class="btn-ghost" style="padding:5px 12px; font-size:11px;">수정</button>
+                            <button class="btn-danger" style="padding:5px 12px; font-size:11px;">삭제</button>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="font-size:13px; color:#c8bea0; padding:10px 14px;">2026-03-31</td>
+                        <td style="font-size:13px; color:#c8bea0; padding:10px 14px;">2026-04-06</td>
+                        <td style="font-size:13px; color:#c8bea0; padding:10px 14px;">2026-W14-1</td>
+                        <td style="font-size:13px; color:#b8a07077; padding:10px 14px;">주요 이벤트</td>
+                        <td style="padding:10px 14px; text-align:center;">
+                          <div style="display:flex; gap:20px; justify-content:center;">
+                            <a href="#" style="font-size:12px; color:#d4af3799; text-decoration:none; display:flex; align-items:center; gap:4px;">
+                              <iconify-icon icon="solar:clipboard-list-linear" style="font-size:13px;"></iconify-icon>
+                              참가 기록
+                            </a>
+                            <button class="btn-ghost" style="padding:5px 12px; font-size:11px;">수정</button>
+                            <button class="btn-danger" style="padding:5px 12px; font-size:11px;">삭제</button>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="thumb-cell">
+                <div class="thumb-wrap">
+                  <img src="/images/icon_event_hall-of-heroes.webp" alt="" onerror="this.style.display='none'">
+                </div>
+              </td>
+              <td style="font-weight:600;">Hall of Heroes</td>
+              <td class="center"><span class="weight-badge">×1.0</span></td>
+              <td class="desc">영웅의 전당. 개인 랭킹 이벤트.</td>
+              <td class="center">
+                <span class="occ-tag">
+                  <iconify-icon icon="solar:calendar-minimalistic-linear" style="font-size:11px;"></iconify-icon>
+                  Expand List
+                </span>
+              </td>
+              <td class="center">
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button class="btn-ghost">수정</button>
+                  <button class="btn-danger">삭제</button>
+                </div>
+              </td>
+            </tr>
+
+            <tr>
+              <td class="thumb-cell">
+                <div class="thumb-wrap">
+                  <img src="/images/icon_event_strongest-governor.webp" alt="" onerror="this.style.display='none'">
+                </div>
+              </td>
+              <td style="font-weight:600;">Strongest Governor</td>
+              <td class="center"><span class="weight-badge">×1.0</span></td>
+              <td class="desc">최강 군주 대결. 전략 포인트 배분 필수.</td>
+              <td class="center">
+                <span class="occ-tag">
+                  <iconify-icon icon="solar:calendar-minimalistic-linear" style="font-size:11px;"></iconify-icon>
+                  Expand List
+                </span>
+              </td>
+              <td class="center">
+                <div style="display:flex; gap:6px; justify-content:center;">
+                  <button class="btn-ghost">수정</button>
+                  <button class="btn-danger">삭제</button>
+                </div>
+              </td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // Generate stars
+  const starsEl = document.getElementById('stars')
+  for (let i = 0; i < 140; i++) {
+    const s = document.createElement('div')
+    s.className = 'star'
+    const size = Math.random() * 1.8 + 0.4
+    const minOp = (Math.random() * 0.1 + 0.05).toFixed(2)
+    const maxOp = (Math.random() * 0.5 + 0.2).toFixed(2)
+    const dur = (Math.random() * 4 + 2).toFixed(1)
+    const delay = (Math.random() * -6).toFixed(1)
+    s.style.cssText = `
+      width:${size}px; height:${size}px;
+      top:${Math.random() * 100}%; left:${Math.random() * 100}%;
+      --min-op:${minOp}; --max-op:${maxOp}; --dur:${dur}s; --delay:${delay}s;
+    `
+    starsEl.appendChild(s)
+  }
+
+  // Page switching
+  function switchPage(page, clickedEl) {
+    // Update nav
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'))
+    if (clickedEl) clickedEl.classList.add('active')
+
+    // Update pages
+    document.querySelectorAll('.page-view').forEach(el => el.classList.remove('active'))
+    const target = document.getElementById('page-' + page)
+    if (target) {
+      target.classList.add('active')
+      // Re-trigger animations
+      target.querySelectorAll('.fade-in').forEach(el => {
+        el.style.animation = 'none'
+        el.offsetHeight
+        el.style.animation = ''
+      })
+    }
+  }
+
+  // Init: show events page and mark nav
+  document.querySelectorAll('.nav-item').forEach((el, i) => {
+    if (el.getAttribute('onclick')?.includes('events')) {
+      el.classList.add('active')
+    } else {
+      el.classList.remove('active')
+    }
+  })
+</script>
+
+</body>
+</html>

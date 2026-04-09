@@ -1,0 +1,54 @@
+project:
+  name: oneshot
+  description: Alliance manager of Kingshot
+  root: /Users/jacob/Desktop/mungnpang
+
+keywords:
+  - fastapi
+  - nextjs
+  - postgresql
+  - sqlalchemy
+  - alembic
+  - easyocr
+  - pytesseract
+  - pydantic
+  - poetry
+  - pnpm
+
+intents:
+  - ocr
+  - screenshot
+  - database
+  - ranking
+  - giftcode
+  - upload
+  - alliance
+
+locations:
+  backend: backend/
+  frontend: frontend/
+  plans: .cwm/docs/plans/
+  manual: .cwm/dev-manual/chapters/
+
+code_patterns:
+  python:
+    naming: snake_case
+    import_order: stdlib > third_party > local
+    style: PEP8
+    formatter: black
+    linter: ruff
+  javascript:
+    naming: camelCase
+    style: ESLint recommended
+    formatter: prettier
+
+plan_enforcer:
+  threshold: 3
+
+auth:
+  method: JWT
+
+git:
+  strategy: github-flow
+  main_branch: main
+  feature_prefix: feature/

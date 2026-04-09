@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+
+# Env
+.env
+.env.local
+
+# Node
+node_modules/
+.next/
+.pnp
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/

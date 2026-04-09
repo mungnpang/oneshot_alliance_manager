@@ -31,7 +31,7 @@ export default function AuthCard({ children }: Props) {
             }}
           />
           <Image
-            src="/alliance_logo.jpeg"
+            src="/alliance_logo.png"
             alt="Order of New Era"
             width={120}
             height={120}

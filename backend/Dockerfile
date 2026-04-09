@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Export deps via poetry then install with pip (more reliable in Docker)
-RUN pip install --no-cache-dir poetry==2.1.2
+RUN pip install --no-cache-dir poetry==2.1.2 poetry-plugin-export
 
 COPY pyproject.toml poetry.lock ./
 

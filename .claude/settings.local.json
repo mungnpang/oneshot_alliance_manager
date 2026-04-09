@@ -46,7 +46,8 @@
       "Bash(sed -n '55,62p' /Users/jacob/Desktop/mungnpang/frontend/src/app/admin/members/page.tsx)",
       "Bash(sed -n '249,270p' /Users/jacob/Desktop/mungnpang/frontend/src/app/admin/events/\\\\[id\\\\]/participations/page.tsx)",
       "Bash(npx tsc:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(pip install:*)"
     ]
   }
 }

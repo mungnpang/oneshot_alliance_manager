@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from app.core.config import settings
 from app.models.base import Base
 import app.models.member  # noqa: F401
-import app.models.snapshot  # noqa: F401
 import app.models.alliance  # noqa: F401
 import app.models.alliance_member  # noqa: F401
 import app.models.event  # noqa: F401

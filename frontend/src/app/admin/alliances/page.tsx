@@ -11,6 +11,7 @@ import {
   type AllianceRank,
   type AllianceRead,
   type AllianceUpdate,
+  type CursorPage,
   type MemberRead,
 } from "@/lib/admin-api"
 import { C, F, sectionTitle } from "@/lib/theme"
@@ -54,7 +55,7 @@ export default function AlliancesPage() {
     const all: MemberRead[] = []
     let cursor: string | null = null
     for (;;) {
-      const page = await adminApi.listMembers(cursor, 200).catch(() => ({ items: [] as MemberRead[], next_cursor: null }))
+      const page: CursorPage<MemberRead> = await adminApi.listMembers(cursor, 200).catch(() => ({ items: [] as MemberRead[], next_cursor: null }))
       all.push(...page.items)
       cursor = page.next_cursor
       if (!cursor) break
@@ -66,7 +67,7 @@ export default function AlliancesPage() {
     const all: AllianceMemberRead[] = []
     let cursor: string | null = null
     for (;;) {
-      const page = await adminApi.listAllianceMembers(allianceId, cursor).catch(() => ({ items: [], next_cursor: null }))
+      const page: CursorPage<AllianceMemberRead> = await adminApi.listAllianceMembers(allianceId, cursor).catch(() => ({ items: [] as AllianceMemberRead[], next_cursor: null }))
       all.push(...page.items)
       cursor = page.next_cursor
       if (!cursor) break

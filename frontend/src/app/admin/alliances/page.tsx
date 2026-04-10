@@ -17,8 +17,6 @@ import { C, F, sectionTitle } from "@/lib/theme"
 
 const RANK_OPTIONS: AllianceRank[] = ["R1", "R2", "R3", "R4", "R5"]
 const RANK_SELECT_OPTIONS = RANK_OPTIONS.map((r) => ({ value: r, label: r }))
-
-/** Alliance member list section order (highest rank first) */
 const RANK_SECTION_ORDER: AllianceRank[] = ["R5", "R4", "R3", "R2", "R1"]
 
 type Modal = { type: "create" } | { type: "edit"; alliance: AllianceRead }
@@ -33,11 +31,13 @@ export default function AlliancesPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [hoveredAllianceId, setHoveredAllianceId] = useState<number | null>(null)
   const [allianceMembers, setAllianceMembers] = useState<AllianceMemberRead[]>([])
-  const [allianceMembersCursor, setAllianceMembersCursor] = useState<string | null>(null)
+  const [collapsedRanks, setCollapsedRanks] = useState<Set<AllianceRank>>(new Set())
   const [memberError, setMemberError] = useState("")
 
   const [searchAllianceId, setSearchAllianceId] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<number>>(new Set())
+  const [addingMembers, setAddingMembers] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
   const [editAllianceMember, setEditAllianceMember] = useState<{
@@ -51,13 +51,22 @@ export default function AlliancesPage() {
   useEffect(() => { load() }, [])
 
   async function loadAllMembers(): Promise<MemberRead[]> {
-    async function fetchPage(cur: string | null): Promise<{ items: MemberRead[]; next_cursor: string | null }> {
-      return adminApi.listMembers(cur, 200).catch(() => ({ items: [] as MemberRead[], next_cursor: null }))
-    }
     const all: MemberRead[] = []
     let cursor: string | null = null
     for (;;) {
-      const page = await fetchPage(cursor)
+      const page = await adminApi.listMembers(cursor, 200).catch(() => ({ items: [] as MemberRead[], next_cursor: null }))
+      all.push(...page.items)
+      cursor = page.next_cursor
+      if (!cursor) break
+    }
+    return all
+  }
+
+  async function loadAllAllianceMembers(allianceId: number): Promise<AllianceMemberRead[]> {
+    const all: AllianceMemberRead[] = []
+    let cursor: string | null = null
+    for (;;) {
+      const page = await adminApi.listAllianceMembers(allianceId, cursor).catch(() => ({ items: [], next_cursor: null }))
       all.push(...page.items)
       cursor = page.next_cursor
       if (!cursor) break
@@ -72,40 +81,58 @@ export default function AlliancesPage() {
 
   async function toggleExpand(allianceId: number) {
     if (expandedId === allianceId) {
-      setExpandedId(null); setAllianceMembers([]); setAllianceMembersCursor(null); setMemberError(""); return
+      setExpandedId(null); setAllianceMembers([]); setCollapsedRanks(new Set()); setMemberError(""); return
     }
     setExpandedId(allianceId); setMemberError("")
-    const page = await adminApi.listAllianceMembers(allianceId).catch(() => ({ items: [], next_cursor: null }))
-    setAllianceMembers(page.items)
-    setAllianceMembersCursor(page.next_cursor)
+    const all = await loadAllAllianceMembers(allianceId)
+    setAllianceMembers(all)
+    setCollapsedRanks(new Set())
   }
 
-  async function loadMoreAllianceMembers(allianceId: number) {
-    if (!allianceMembersCursor) return
-    const page = await adminApi.listAllianceMembers(allianceId, allianceMembersCursor).catch(() => ({ items: [], next_cursor: null }))
-    setAllianceMembers(prev => [...prev, ...page.items])
-    setAllianceMembersCursor(page.next_cursor)
+  function toggleRankCollapse(rank: AllianceRank) {
+    setCollapsedRanks(prev => {
+      const next = new Set(prev)
+      if (next.has(rank)) next.delete(rank)
+      else next.add(rank)
+      return next
+    })
   }
 
   async function refreshMembers(allianceId: number) {
-    const page = await adminApi.listAllianceMembers(allianceId).catch(() => ({ items: [], next_cursor: null }))
-    setAllianceMembers(page.items)
-    setAllianceMembersCursor(page.next_cursor)
+    const all = await loadAllAllianceMembers(allianceId)
+    setAllianceMembers(all)
   }
 
   function openSearch(allianceId: number) {
     setSearchAllianceId(allianceId)
     setSearchQuery("")
+    setSelectedMemberIds(new Set())
     setTimeout(() => searchRef.current?.focus(), 50)
   }
 
-  async function addMember(allianceId: number, memberId: number) {
+  function toggleSelectMember(memberId: number) {
+    setSelectedMemberIds(prev => {
+      const next = new Set(prev)
+      if (next.has(memberId)) next.delete(memberId)
+      else next.add(memberId)
+      return next
+    })
+  }
+
+  async function addSelectedMembers(allianceId: number) {
+    if (selectedMemberIds.size === 0) return
+    setAddingMembers(true)
     try {
-      await adminApi.addAllianceMember(allianceId, { member_id: memberId })
+      await Promise.all(
+        [...selectedMemberIds].map(memberId => adminApi.addAllianceMember(allianceId, { member_id: memberId }))
+      )
       setSearchAllianceId(null)
+      setSelectedMemberIds(new Set())
       refreshMembers(allianceId)
     } catch (e: unknown) {
       setMemberError(e instanceof Error ? e.message : "Add failed")
+    } finally {
+      setAddingMembers(false)
     }
   }
 
@@ -185,7 +212,6 @@ export default function AlliancesPage() {
 
   const searchAlliance = alliances.find(a => a.id === searchAllianceId)
 
-  // Sub table header/cell — slightly smaller than parent table
   const subTh: React.CSSProperties = { ...th, fontSize: F.xxs, padding: "10px 14px" }
   const subTd: React.CSSProperties = { ...td, fontSize: F.xs, padding: "10px 14px", borderBottom: `1px solid #c9a84c0e` }
 
@@ -226,15 +252,7 @@ export default function AlliancesPage() {
                   <td style={td}>{a.alias}</td>
                   <td style={td}>#{a.kid}</td>
                   <td style={{ ...td, userSelect: "none" }}>
-                    <span
-                      style={{
-                        fontSize: F.xxs,
-                        color: expandedId === a.id ? C.goldMid : C.textHint,
-                        borderBottom: `1px dashed ${expandedId === a.id ? C.goldDim : `${C.goldFaint}`}`,
-                        paddingBottom: 2,
-                        letterSpacing: F.trackingWide,
-                      }}
-                    >
+                    <span style={{ fontSize: F.xxs, color: expandedId === a.id ? C.goldMid : C.textHint, borderBottom: `1px dashed ${expandedId === a.id ? C.goldDim : `${C.goldFaint}`}`, paddingBottom: 2, letterSpacing: F.trackingWide }}>
                       {expandedId === a.id ? "Collapse" : "Expand List"}
                     </span>
                   </td>
@@ -248,159 +266,100 @@ export default function AlliancesPage() {
 
                 {expandedId === a.id && (
                   <tr key={`${a.id}-expand`}>
-                    <td
-                      colSpan={5}
-                      style={{
-                        padding: "18px 20px 26px",
-                        borderBottom: `1px solid ${C.goldFaint}`,
-                        verticalAlign: "top",
-                        background: `${C.gold}06`,
-                      }}
-                    >
+                    <td colSpan={5} style={{ padding: "18px 20px 26px", borderBottom: `1px solid ${C.goldFaint}`, verticalAlign: "top", background: `${C.gold}06` }}>
                       <div
                         onClick={e => e.stopPropagation()}
-                        style={{
-                          padding: "20px 22px 22px",
-                          borderRadius: 12,
-                          border: `1px solid ${C.goldFaint}`,
-                          background: "linear-gradient(168deg, #141f3e99, #0b1229cc)",
-                          boxShadow: `0 10px 36px #00000055, inset 0 1px 0 ${C.goldGlow2}`,
-                        }}
+                        style={{ padding: "20px 22px 22px", borderRadius: 12, border: `1px solid ${C.goldFaint}`, background: "linear-gradient(168deg, #141f3e99, #0b1229cc)", boxShadow: `0 10px 36px #00000055, inset 0 1px 0 ${C.goldGlow2}` }}
                       >
                         {/* Header bar */}
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            paddingBottom: 14,
-                            marginBottom: 14,
-                            borderBottom: `1px solid ${C.goldFaint}`,
-                          }}
-                        >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${C.goldFaint}` }}>
                           <span style={{ color: C.textHint, fontSize: F.xxs, letterSpacing: F.trackingWide, textTransform: "uppercase", fontWeight: 600 }}>
                             {allianceMembers.length} Alliance Member(s)
                           </span>
-                          <button
-                            style={{ ...btn("gold"), padding: "4px 12px", fontSize: F.xxs }}
-                            onClick={e => { e.stopPropagation(); openSearch(a.id) }}
-                          >+ Add</button>
+                          <button style={{ ...btn("gold"), padding: "4px 12px", fontSize: F.xxs }} onClick={e => { e.stopPropagation(); openSearch(a.id) }}>+ Add</button>
                         </div>
                         {memberError && <p style={{ color: C.danger, fontSize: F.xs, marginBottom: 10 }}>{memberError}</p>}
 
-                        {/* Sub table */}
-                        {allianceMembers.length === 0 && !allianceMembersCursor ? (
+                        {allianceMembers.length === 0 ? (
                           <p style={{ color: "#555", fontSize: F.xs, padding: "8px 0 4px" }}>No alliance members</p>
                         ) : (
-                          <table
-                            style={{
-                              width: "100%",
-                              borderCollapse: "collapse",
-                              tableLayout: "fixed",
-                            }}
-                          >
-                            <colgroup>
-                              <col style={{ width: "14%" }} />
-                              <col style={{ width: "26%" }} />
-                              <col style={{ width: "11%" }} />
-                              <col style={{ width: "12%" }} />
-                              <col style={{ width: "11%" }} />
-                              <col style={{ width: "26%" }} />
-                            </colgroup>
-                            <tbody>
-                              {allianceMembersByRank.map(({ rank, items }, sectionIdx) => (
-                                <Fragment key={rank}>
-                                  {sectionIdx > 0 && (
-                                    <tr aria-hidden>
-                                      <td
-                                        colSpan={6}
-                                        style={{
-                                          height: 24,
-                                          padding: 0,
-                                          border: "none",
-                                          background: "transparent",
-                                          lineHeight: 0,
-                                          fontSize: 0,
-                                        }}
-                                      />
-                                    </tr>
-                                  )}
-                                  <tr>
-                                    <td
-                                      colSpan={6}
-                                      style={{
-                                        color: C.textHint,
-                                        fontSize: F.xxs,
-                                        letterSpacing: F.trackingWide,
-                                        fontWeight: 600,
-                                        textTransform: "uppercase",
-                                        padding: `${sectionIdx === 0 ? 4 : 0}px 0 8px 10px`,
-                                        borderLeft: `3px solid ${C.goldFaint}`,
-                                        verticalAlign: "middle",
-                                        background: "transparent",
-                                      }}
-                                    >
+                          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                            {allianceMembersByRank.map(({ rank, items }) => {
+                              const isCollapsed = collapsedRanks.has(rank)
+                              return (
+                                <div key={rank}>
+                                  {/* Rank header — clickable toggle */}
+                                  <button
+                                    type="button"
+                                    onClick={e => { e.stopPropagation(); toggleRankCollapse(rank) }}
+                                    style={{
+                                      display: "flex", alignItems: "center", gap: 8,
+                                      background: "transparent", border: "none", cursor: "pointer",
+                                      padding: "4px 0 8px 10px",
+                                      borderLeft: `3px solid ${C.goldFaint}`,
+                                      width: "100%", textAlign: "left",
+                                    }}
+                                  >
+                                    <span style={{ color: C.textHint, fontSize: F.xxs, letterSpacing: F.trackingWide, fontWeight: 600, textTransform: "uppercase" }}>
                                       {rank}
-                                      <span style={{ color: "#666", fontWeight: 500, textTransform: "none", letterSpacing: "normal" }}>
-                                        · {items.length}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                  <tr>
-                                    {["FID", "Nickname", "Rank", "Lv", "Admin", "Actions"].map((h) => (
-                                      <th
-                                        key={h}
-                                        scope="col"
-                                        style={h === "Actions" ? { ...subTh, textAlign: "center" } : subTh}
-                                      >
-                                        {h}
-                                      </th>
-                                    ))}
-                                  </tr>
-                                  {items.map((am) => {
-                                    const m = getMember(am.member_id)
-                                    return (
-                                      <tr key={am.id}>
-                                        <td style={subTd}>{m?.fid ?? am.member_id}</td>
-                                        <td style={{ ...subTd, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={m?.nickname || undefined}>
-                                          {m?.nickname ?? "—"}
-                                        </td>
-                                        <td style={subTd}>{am.rank}</td>
-                                        <td style={{ ...subTd, textAlign: "center" }}>
-                                          <StoveLvCell value={m?.stove_lv_content ?? null} />
-                                        </td>
-                                        <td style={subTd}>
-                                          <span style={{ color: m?.is_admin ? gold : "#555" }}>{m?.is_admin ? "✓" : "—"}</span>
-                                        </td>
-                                        <td style={{ ...subTd, textAlign: "center" }}>
-                                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", width: "100%" }}>
-                                            <button
-                                              type="button"
-                                              style={{ ...btn("ghost"), padding: "4px 10px", fontSize: F.xxs }}
-                                              onClick={e => { e.stopPropagation(); openEditAllianceMember(a.id, am) }}
-                                            >Edit</button>
-                                            <button
-                                              type="button"
-                                              style={{ ...btn("danger"), padding: "4px 10px", fontSize: F.xxs }}
-                                              onClick={e => { e.stopPropagation(); removeMember(a.id, am.member_id) }}
-                                            >Remove</button>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    )
-                                  })}
-                                </Fragment>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                        {allianceMembersCursor && (
-                          <div style={{ textAlign: "center", marginTop: 12 }}>
-                            <button
-                              type="button"
-                              style={{ ...btn("ghost"), padding: "4px 16px", fontSize: F.xxs }}
-                              onClick={e => { e.stopPropagation(); loadMoreAllianceMembers(a.id) }}
-                            >Load More</button>
+                                    </span>
+                                    <span style={{ color: "#666", fontSize: F.xxs, fontWeight: 500 }}>
+                                      · {items.length} users
+                                    </span>
+                                    <svg
+                                      width="12" height="12" fill="none" viewBox="0 0 24 24" stroke={C.textHint} strokeWidth={2}
+                                      style={{ marginLeft: "auto", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+                                    >
+                                      <path d="M19 9l-7 7-7-7" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                  </button>
+
+                                  {!isCollapsed && (
+                                    <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                                      <colgroup>
+                                        <col style={{ width: "14%" }} />
+                                        <col style={{ width: "26%" }} />
+                                        <col style={{ width: "11%" }} />
+                                        <col style={{ width: "12%" }} />
+                                        <col style={{ width: "11%" }} />
+                                        <col style={{ width: "26%" }} />
+                                      </colgroup>
+                                      <tbody>
+                                        <tr>
+                                          {["FID", "Nickname", "Rank", "Lv", "Admin", "Actions"].map((h) => (
+                                            <th key={h} scope="col" style={h === "Actions" ? { ...subTh, textAlign: "center" } : subTh}>{h}</th>
+                                          ))}
+                                        </tr>
+                                        {items.map((am) => {
+                                          const m = getMember(am.member_id)
+                                          return (
+                                            <tr key={am.id}>
+                                              <td style={subTd}>{m?.fid ?? am.member_id}</td>
+                                              <td style={{ ...subTd, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={m?.nickname || undefined}>
+                                                {m?.nickname ?? "—"}
+                                              </td>
+                                              <td style={subTd}>{am.rank}</td>
+                                              <td style={{ ...subTd, textAlign: "center" }}>
+                                                <StoveLvCell value={m?.stove_lv_content ?? null} />
+                                              </td>
+                                              <td style={subTd}>
+                                                <span style={{ color: m?.is_admin ? gold : "#555" }}>{m?.is_admin ? "✓" : "—"}</span>
+                                              </td>
+                                              <td style={{ ...subTd, textAlign: "center" }}>
+                                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+                                                  <button type="button" style={{ ...btn("ghost"), padding: "4px 10px", fontSize: F.xxs }} onClick={e => { e.stopPropagation(); openEditAllianceMember(a.id, am) }}>Edit</button>
+                                                  <button type="button" style={{ ...btn("danger"), padding: "4px 10px", fontSize: F.xxs }} onClick={e => { e.stopPropagation(); removeMember(a.id, am.member_id) }}>Remove</button>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          )
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  )}
+                                </div>
+                              )
+                            })}
                           </div>
                         )}
                       </div>
@@ -415,14 +374,8 @@ export default function AlliancesPage() {
 
       {/* Alliance member rank/admin edit modal */}
       {editAllianceMember !== null && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "#00000088", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 55 }}
-          onClick={() => setEditAllianceMember(null)}
-        >
-          <div
-            style={{ background: "linear-gradient(160deg, #0f1a38f0, #0a1228f0)", border: `1px solid ${goldDim}`, borderRadius: 14, padding: 28, width: 400, boxShadow: `0 0 60px #00000080, 0 0 0 1px ${C.goldGlow}` }}
-            onClick={e => e.stopPropagation()}
-          >
+        <div style={{ position: "fixed", inset: 0, background: "#00000088", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 55 }} onClick={() => setEditAllianceMember(null)}>
+          <div style={{ background: "linear-gradient(160deg, #0f1a38f0, #0a1228f0)", border: `1px solid ${goldDim}`, borderRadius: 14, padding: 28, width: 400, boxShadow: `0 0 60px #00000080, 0 0 0 1px ${C.goldGlow}` }} onClick={e => e.stopPropagation()}>
             <h3 style={{ color: gold, fontSize: F.sm, fontWeight: 700, letterSpacing: F.trackingWide, marginBottom: 6 }}>Edit Alliance Member</h3>
             <p style={{ color: C.textHint, fontSize: F.xs, marginBottom: 18 }}>
               FID {getMember(editAllianceMember.am.member_id)?.fid ?? editAllianceMember.am.member_id}
@@ -432,20 +385,10 @@ export default function AlliancesPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div>
                 <label style={{ color: C.textHint, fontSize: F.xs, display: "block", marginBottom: 6 }}>Rank</label>
-                <AdminSelect<AllianceRank>
-                  ariaLabel="Rank"
-                  value={editRank}
-                  options={RANK_SELECT_OPTIONS}
-                  onChange={setEditRank}
-                />
+                <AdminSelect<AllianceRank> ariaLabel="Rank" value={editRank} options={RANK_SELECT_OPTIONS} onChange={setEditRank} />
               </div>
               <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", color: C.textBright, fontSize: F.sm }}>
-                <input
-                  type="checkbox"
-                  checked={editIsAdmin}
-                  onChange={e => setEditIsAdmin(e.target.checked)}
-                  style={{ width: 18, height: 18, accentColor: gold }}
-                />
+                <input type="checkbox" checked={editIsAdmin} onChange={e => setEditIsAdmin(e.target.checked)} style={{ width: 18, height: 18, accentColor: gold }} />
                 System Admin
               </label>
               {memberEditError && <p style={{ color: C.danger, fontSize: F.xs }}>{memberEditError}</p>}
@@ -458,16 +401,10 @@ export default function AlliancesPage() {
         </div>
       )}
 
-      {/* Alliance member search modal */}
+      {/* Alliance member search + multi-select modal */}
       {searchAllianceId !== null && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "#00000088", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}
-          onClick={() => setSearchAllianceId(null)}
-        >
-          <div
-            style={{ background: "linear-gradient(160deg, #0f1a38f0, #0a1228f0)", border: `1px solid ${goldDim}`, borderRadius: 14, padding: 28, width: 460, boxShadow: `0 0 60px #00000080, 0 0 0 1px ${C.goldGlow}` }}
-            onClick={e => e.stopPropagation()}
-          >
+        <div style={{ position: "fixed", inset: 0, background: "#00000088", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }} onClick={() => setSearchAllianceId(null)}>
+          <div style={{ background: "linear-gradient(160deg, #0f1a38f0, #0a1228f0)", border: `1px solid ${goldDim}`, borderRadius: 14, padding: 28, width: 480, boxShadow: `0 0 60px #00000080, 0 0 0 1px ${C.goldGlow}` }} onClick={e => e.stopPropagation()}>
             <h3 style={{ color: gold, fontSize: F.sm, fontWeight: 700, letterSpacing: F.trackingWide, marginBottom: 6 }}>Add Alliance Member</h3>
             <p style={{ color: C.textHint, fontSize: F.xs, marginBottom: 18 }}>{searchAlliance?.name} — Search by FID or Nickname</p>
 
@@ -480,29 +417,53 @@ export default function AlliancesPage() {
               onChange={e => setSearchQuery(e.target.value)}
             />
 
-            <div style={{ maxHeight: 280, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ maxHeight: 280, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
               {searchResults.length === 0 ? (
                 <p style={{ color: "#555", fontSize: F.xs, padding: "12px 0", textAlign: "center" }}>
                   {q ? "No search results" : "Enter a nickname or FID"}
                 </p>
               ) : (
-                searchResults.map(m => (
-                  <button
-                    key={m.id}
-                    onClick={() => addMember(searchAllianceId, m.id)}
-                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "transparent", border: `1px solid transparent`, borderRadius: 8, padding: "9px 14px", cursor: "pointer", textAlign: "left", transition: "all 0.12s" }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#1a2a50"; (e.currentTarget as HTMLButtonElement).style.borderColor = C.goldFaint }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent" }}
-                  >
-                    <span style={{ color: C.textBright, fontSize: F.sm }}>{m.nickname ?? "—"}</span>
-                    <span style={{ color: C.textHint, fontSize: F.xs }}>FID {m.fid}{m.kid ? ` · #${m.kid}` : ""}</span>
-                  </button>
-                ))
+                searchResults.map(m => {
+                  const selected = selectedMemberIds.has(m.id)
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => toggleSelectMember(m.id)}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        background: selected ? `${C.gold}14` : "transparent",
+                        border: `1px solid ${selected ? C.goldDim : "transparent"}`,
+                        borderRadius: 8, padding: "9px 14px",
+                        cursor: "pointer", textAlign: "left", transition: "all 0.12s",
+                      }}
+                      onMouseEnter={e => { if (!selected) { (e.currentTarget as HTMLButtonElement).style.background = "#1a2a50"; (e.currentTarget as HTMLButtonElement).style.borderColor = C.goldFaint } }}
+                      onMouseLeave={e => { if (!selected) { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent" } }}
+                    >
+                      <div style={{ width: 16, height: 16, borderRadius: 4, border: `2px solid ${selected ? C.gold : C.textHint}`, background: selected ? C.gold : "transparent", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.12s" }}>
+                        {selected && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#080b18" strokeWidth={3}><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                      </div>
+                      <span style={{ color: C.textBright, fontSize: F.sm, flex: 1 }}>{m.nickname ?? "—"}</span>
+                      <span style={{ color: C.textHint, fontSize: F.xs }}>FID {m.fid}{m.kid ? ` · #${m.kid}` : ""}</span>
+                    </button>
+                  )
+                })
               )}
             </div>
 
-            <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
-              <button style={btn("ghost")} onClick={() => setSearchAllianceId(null)}>Close</button>
+            <div style={{ marginTop: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: F.xs, color: C.textHint }}>
+                {selectedMemberIds.size > 0 ? `${selectedMemberIds.size} selected` : ""}
+              </span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={btn("ghost")} onClick={() => setSearchAllianceId(null)}>Cancel</button>
+                <button
+                  style={{ ...btn("gold"), opacity: selectedMemberIds.size === 0 || addingMembers ? 0.5 : 1, cursor: selectedMemberIds.size === 0 || addingMembers ? "not-allowed" : "pointer" }}
+                  disabled={selectedMemberIds.size === 0 || addingMembers}
+                  onClick={() => addSelectedMembers(searchAllianceId)}
+                >
+                  {addingMembers ? "Adding..." : `Add${selectedMemberIds.size > 0 ? ` (${selectedMemberIds.size})` : ""}`}
+                </button>
+              </div>
             </div>
           </div>
         </div>

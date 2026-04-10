@@ -9,11 +9,10 @@ from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
 from rapidfuzz import fuzz, process
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import settings
 from app.core.exceptions import OneshotException
-from app.models.alliance import Alliance
 from app.models.alliance_member import AllianceMember
 from app.models.event_occurrence import EventOccurrence
 from app.models.member import Member
@@ -69,38 +68,23 @@ def _deduplicate(items: list[dict]) -> list[dict]:
     return list(seen.values())
 
 
-def _get_member_candidates(
-    db: Session,
-    alliance_id: Optional[int],
-    alliance_tag: Optional[str],
-    occurrence_alias: Optional[str],
-) -> list[tuple[int, str]]:
-    """
-    Returns [(member_id, nickname), ...] to fuzzy-match against.
-    If alliance_tag matches occurrence alias → restrict to alliance members.
-    Otherwise → all members.
-    """
-    has_matching_tag = (
-        alliance_tag
-        and occurrence_alias
-        and alliance_tag.upper() == occurrence_alias.upper()
+def _load_alliance_member_candidates(db: Session, alliance_id: int) -> list[tuple[int, str]]:
+    rows = (
+        db.query(Member.id, Member.nickname)
+        .join(AllianceMember, AllianceMember.member_id == Member.id)
+        .filter(AllianceMember.alliance_id == alliance_id)
+        .filter(Member.nickname.isnot(None))
+        .all()
     )
+    return [(r[0], r[1]) for r in rows]
 
-    if has_matching_tag and alliance_id:
-        rows = (
-            db.query(Member.id, Member.nickname)
-            .join(AllianceMember, AllianceMember.member_id == Member.id)
-            .filter(AllianceMember.alliance_id == alliance_id)
-            .filter(Member.nickname.isnot(None))
-            .all()
-        )
-    else:
-        rows = (
-            db.query(Member.id, Member.nickname)
-            .filter(Member.nickname.isnot(None))
-            .all()
-        )
 
+def _load_all_member_candidates(db: Session) -> list[tuple[int, str]]:
+    rows = (
+        db.query(Member.id, Member.nickname)
+        .filter(Member.nickname.isnot(None))
+        .all()
+    )
     return [(r[0], r[1]) for r in rows]
 
 
@@ -136,16 +120,21 @@ async def parse_screenshots(
         matched_member_id, matched_member_name, confidence
     }
     """
-    # Load occurrence + alliance info
-    occurrence = db.query(EventOccurrence).filter(EventOccurrence.id == occurrence_id).first()
+    occurrence = (
+        db.query(EventOccurrence)
+        .options(joinedload(EventOccurrence.alliance))
+        .filter(EventOccurrence.id == occurrence_id)
+        .first()
+    )
     if not occurrence:
         raise OneshotException(404, f"Occurrence {occurrence_id} not found")
 
     occurrence_alias: Optional[str] = None
-    if occurrence.alliance_id:
-        alliance = db.query(Alliance).filter(Alliance.id == occurrence.alliance_id).first()
-        if alliance:
-            occurrence_alias = alliance.alias
+    if occurrence.alliance_id and occurrence.alliance:
+        occurrence_alias = occurrence.alliance.alias
+
+    alliance_candidates: Optional[list[tuple[int, str]]] = None
+    all_members_candidates: Optional[list[tuple[int, str]]] = None
 
     # Call Gemini Vision
     client = _get_client()
@@ -178,12 +167,19 @@ async def parse_screenshots(
         if isinstance(score, str):
             score = int(re.sub(r"[,\s]", "", score)) if score else None
 
-        candidates = _get_member_candidates(
-            db,
-            alliance_id=occurrence.alliance_id,
-            alliance_tag=alliance_tag,
-            occurrence_alias=occurrence_alias,
+        has_matching_tag = (
+            alliance_tag
+            and occurrence_alias
+            and alliance_tag.upper() == occurrence_alias.upper()
         )
+        if has_matching_tag and occurrence.alliance_id:
+            if alliance_candidates is None:
+                alliance_candidates = _load_alliance_member_candidates(db, occurrence.alliance_id)
+            candidates = alliance_candidates
+        else:
+            if all_members_candidates is None:
+                all_members_candidates = _load_all_member_candidates(db)
+            candidates = all_members_candidates
         matched_id, matched_name, confidence = _fuzzy_match(raw_nickname, candidates)
 
         result.append({
@@ -218,6 +214,24 @@ def bulk_create_participations(
     if not occurrence:
         raise OneshotException(404, f"Occurrence {occurrence_id} not found")
 
+    by_member: dict[int, EventParticipation] = {
+        ep.member_id: ep
+        for ep in db.query(EventParticipation)
+        .filter(EventParticipation.occurrence_id == occurrence_id)
+        .all()
+    }
+
+    dupe_ids: list[int] = []
+    if not upsert:
+        for rec in records:
+            mid = rec["member_id"]
+            if mid in by_member:
+                dupe_ids.append(mid)
+    members_by_id: dict[int, Member] = {}
+    if dupe_ids:
+        for m in db.query(Member).filter(Member.id.in_(set(dupe_ids))).all():
+            members_by_id[m.id] = m
+
     inserted = 0
     upserted = 0
     duplicates = []
@@ -226,14 +240,7 @@ def bulk_create_participations(
         member_id = rec["member_id"]
         score = rec.get("score")
 
-        existing = (
-            db.query(EventParticipation)
-            .filter(
-                EventParticipation.occurrence_id == occurrence_id,
-                EventParticipation.member_id == member_id,
-            )
-            .first()
-        )
+        existing = by_member.get(member_id)
 
         if existing:
             if upsert:
@@ -241,7 +248,7 @@ def bulk_create_participations(
                 existing.is_participated = True
                 upserted += 1
             else:
-                member = db.query(Member).filter(Member.id == member_id).first()
+                member = members_by_id.get(member_id)
                 duplicates.append({
                     "member_id": member_id,
                     "member_name": member.nickname if member else str(member_id),
@@ -249,13 +256,15 @@ def bulk_create_participations(
                     "new_score": score,
                 })
         else:
-            db.add(EventParticipation(
+            ep = EventParticipation(
                 event_id=occurrence.event_id,
                 occurrence_id=occurrence_id,
                 member_id=member_id,
                 is_participated=True,
                 score=score,
-            ))
+            )
+            db.add(ep)
+            by_member[member_id] = ep
             inserted += 1
 
     db.commit()

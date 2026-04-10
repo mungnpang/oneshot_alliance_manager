@@ -24,16 +24,17 @@ def _not_found(label: str, id: int):
     raise OneshotException(404, f"{label} {id} not found")
 
 
-# ── Members ──────────────────────────────────────────────────────────────────
-
-def member_as_read(db: Session, m: Member) -> MemberRead:
+def _alliance_alias_for_member(db: Session, member_id: int) -> str | None:
     row = (
         db.query(Alliance.alias)
         .join(AllianceMember, AllianceMember.alliance_id == Alliance.id)
-        .filter(AllianceMember.member_id == m.id)
+        .filter(AllianceMember.member_id == member_id)
         .first()
     )
-    alias = row[0] if row else None
+    return row[0] if row else None
+
+
+def _member_read_from_loaded(m: Member, alliance_alias: str | None) -> MemberRead:
     return MemberRead(
         id=m.id,
         fid=m.fid,
@@ -45,8 +46,24 @@ def member_as_read(db: Session, m: Member) -> MemberRead:
         is_admin=m.is_admin,
         created_at=m.created_at,
         updated_at=m.updated_at,
-        alliance_alias=alias,
+        alliance_alias=alliance_alias,
     )
+
+
+# ── Members ──────────────────────────────────────────────────────────────────
+
+def get_member_read(db: Session, member_id: int) -> MemberRead:
+    r = (
+        db.query(Member, Alliance.alias)
+        .outerjoin(AllianceMember, AllianceMember.member_id == Member.id)
+        .outerjoin(Alliance, Alliance.id == AllianceMember.alliance_id)
+        .filter(Member.id == member_id)
+        .first()
+    )
+    if not r:
+        _not_found("Member", member_id)
+    m, alias = r
+    return _member_read_from_loaded(m, alias)
 
 
 def list_members(db: Session, cursor: str | None = None, limit: int = 50) -> CursorPage[MemberRead]:
@@ -89,13 +106,13 @@ def get_member(db: Session, member_id: int) -> Member:
     return m
 
 
-def update_member(db: Session, member_id: int, data: MemberUpdate) -> Member:
+def update_member(db: Session, member_id: int, data: MemberUpdate) -> MemberRead:
     m = get_member(db, member_id)
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(m, field, value)
     db.commit()
     db.refresh(m)
-    return m
+    return _member_read_from_loaded(m, _alliance_alias_for_member(db, m.id))
 
 
 def delete_member(db: Session, member_id: int) -> None:

@@ -33,19 +33,17 @@ def list_members(
 @router.post("/members", response_model=MemberRead, status_code=201)
 async def create_member(body: MemberCreate, db: Session = Depends(get_db), _: Member = _admin):
     member = await auth_service.register(body.fid, db)
-    return admin_service.member_as_read(db, member)
+    return admin_service.get_member_read(db, member.id)
 
 
 @router.get("/members/{member_id}", response_model=MemberRead)
 def get_member(member_id: int, db: Session = Depends(get_db), _: Member = _admin):
-    m = admin_service.get_member(db, member_id)
-    return admin_service.member_as_read(db, m)
+    return admin_service.get_member_read(db, member_id)
 
 
 @router.put("/members/{member_id}", response_model=MemberRead)
 def update_member(member_id: int, body: MemberUpdate, db: Session = Depends(get_db), _: Member = _admin):
-    m = admin_service.update_member(db, member_id, body)
-    return admin_service.member_as_read(db, m)
+    return admin_service.update_member(db, member_id, body)
 
 
 @router.delete("/members/{member_id}", status_code=204)

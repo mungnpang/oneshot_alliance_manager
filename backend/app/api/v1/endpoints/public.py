@@ -65,7 +65,7 @@ def get_my_stats(
             EventParticipation.member_id == member_id,
             EventParticipation.is_participated == True,
         )
-        .group_by(Event.id, Event.name, Event.eval_weight)
+        .group_by(Event.id, Event.name, Event.thumbnail_url, Event.eval_weight)
         .order_by(func.count(EventParticipation.id).desc())
         .all()
     )

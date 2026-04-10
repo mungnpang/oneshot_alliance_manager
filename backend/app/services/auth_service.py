@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import AuthException, KingshotAPIException
 from app.core.security import create_access_token, hash_password, verify_password
+from app.models.alliance import Alliance
+from app.models.alliance_member import AllianceMember
 from app.models.member import Member
 from app.services.kingshot_service import fetch_player
 
@@ -29,9 +31,18 @@ async def register(fid: int, db: Session) -> Member:
     return member
 
 
-async def login(fid: int, password: str, db: Session) -> str:
-    member = db.query(Member).filter(Member.fid == fid).first()
-    if not member or not verify_password(password, member.hashed_password):
+async def login(fid: int, password: str, db: Session) -> tuple[str, Member, str | None]:
+    row = (
+        db.query(Member, Alliance.alias)
+        .outerjoin(AllianceMember, AllianceMember.member_id == Member.id)
+        .outerjoin(Alliance, Alliance.id == AllianceMember.alliance_id)
+        .filter(Member.fid == fid)
+        .first()
+    )
+    if not row:
+        raise AuthException("Invalid FID or password")
+    member, alliance_alias = row
+    if not verify_password(password, member.hashed_password):
         raise AuthException("Invalid FID or password")
 
     # Update Kingshot metadata on login (login is allowed even if this fails)
@@ -48,7 +59,7 @@ async def login(fid: int, password: str, db: Session) -> str:
         pass
 
     db.refresh(member)
-    return create_access_token(member.id), member
+    return create_access_token(member.id), member, alliance_alias
 
 
 def change_password(member_id: int, current_password: str, new_password: str, db: Session) -> None:

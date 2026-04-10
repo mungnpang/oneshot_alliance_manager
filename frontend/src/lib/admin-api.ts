@@ -128,7 +128,7 @@ export async function fetchAllMembers(): Promise<MemberRead[]> {
   const all: MemberRead[] = []
   let cursor: string | null = null
   for (;;) {
-    const page = await req<CursorPage<MemberRead>>("GET", `/members${cursor ? `?cursor=${cursor}&limit=200` : `?limit=200`}`)
+    const page: CursorPage<MemberRead> = await req<CursorPage<MemberRead>>("GET", `/members${cursor ? `?cursor=${cursor}&limit=200` : `?limit=200`}`)
     all.push(...page.items)
     cursor = page.next_cursor
     if (!cursor) break

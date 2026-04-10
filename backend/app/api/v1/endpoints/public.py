@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError
 from pydantic import BaseModel
@@ -15,6 +15,7 @@ from app.services import admin_service
 
 router = APIRouter(prefix="/public")
 _bearer = HTTPBearer()
+_bearer_optional = HTTPBearer(auto_error=False)
 
 
 def _get_member_id(
@@ -40,18 +41,14 @@ class MemberStatsResponse(BaseModel):
     total_score: float
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+class PublicHomeDataResponse(BaseModel):
+    """Single round-trip for landing calendar + optional logged-in stats (reduces browser connection queueing)."""
 
-@router.get("/occurrences", response_model=list[EventOccurrenceWithEventRead])
-def list_occurrences_by_month(year: int, month: int, db: Session = Depends(get_db)):
-    return admin_service.list_occurrences_by_month(db, year, month)
+    occurrences: list[EventOccurrenceWithEventRead]
+    stats: MemberStatsResponse | None = None
 
 
-@router.get("/me/stats", response_model=MemberStatsResponse)
-def get_my_stats(
-    member_id: int = Depends(_get_member_id),
-    db: Session = Depends(get_db),
-):
+def _member_stats_response(db: Session, member_id: int) -> MemberStatsResponse:
     rows = (
         db.query(
             Event.id,
@@ -69,7 +66,6 @@ def get_my_stats(
         .order_by(func.count(EventParticipation.id).desc())
         .all()
     )
-
     stats = [
         EventStatItem(
             event_id=r.id,
@@ -81,5 +77,50 @@ def get_my_stats(
         for r in rows
     ]
     total_score = sum(s.eval_weight * s.count for s in stats)
-
     return MemberStatsResponse(stats=stats, total_score=total_score)
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.get("/home-data", response_model=PublicHomeDataResponse)
+def public_home_data(
+    year: int,
+    month: int,
+    response: Response,
+    db: Session = Depends(get_db),
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),
+):
+    occurrences = admin_service.list_occurrences_by_month(db, year, month)
+    stats = None
+    if creds:
+        try:
+            member_id = decode_access_token(creds.credentials)
+            stats = _member_stats_response(db, member_id)
+        except JWTError:
+            pass
+    if stats is not None:
+        response.headers["Cache-Control"] = "private, max-age=30, stale-while-revalidate=120"
+    else:
+        response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
+    return PublicHomeDataResponse(occurrences=occurrences, stats=stats)
+
+
+@router.get("/occurrences", response_model=list[EventOccurrenceWithEventRead])
+def list_occurrences_by_month(
+    year: int,
+    month: int,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
+    return admin_service.list_occurrences_by_month(db, year, month)
+
+
+@router.get("/me/stats", response_model=MemberStatsResponse)
+def get_my_stats(
+    response: Response,
+    member_id: int = Depends(_get_member_id),
+    db: Session = Depends(get_db),
+):
+    response.headers["Cache-Control"] = "private, max-age=30, stale-while-revalidate=120"
+    return _member_stats_response(db, member_id)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, Response, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.api.v1.endpoints.auth import get_current_admin
@@ -154,9 +154,11 @@ def delete_event(event_id: int, db: Session = Depends(get_db), _: Member = _admi
 def list_all_occurrences_by_month(
     year: int,
     month: int,
+    response: Response,
     db: Session = Depends(get_db),
     _: Member = _admin,
 ):
+    response.headers["Cache-Control"] = "private, max-age=30, stale-while-revalidate=120"
     return admin_service.list_occurrences_by_month(db, year, month)
 
 

@@ -22,15 +22,24 @@ interface MemberStats {
   total_score: number
 }
 
-async function fetchMyStats(token: string): Promise<MemberStats | null> {
+interface HomeDataResponse {
+  occurrences: EventOccurrence[]
+  stats: MemberStats | null
+}
+
+/** One request: calendar + optional stats (avoids HTTP/1.1 connection queueing vs two parallel calls). */
+async function fetchHomeData(year: number, month: number, token: string | null): Promise<HomeDataResponse> {
+  const headers: Record<string, string> = {}
+  if (token) headers.Authorization = `Bearer ${token}`
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/public/me/stats`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!res.ok) return null
+    const res = await fetch(
+      `${API_BASE_URL}/api/v1/public/home-data?year=${year}&month=${month}`,
+      { headers, cache: "default" },
+    )
+    if (!res.ok) return { occurrences: [], stats: null }
     return res.json()
   } catch {
-    return null
+    return { occurrences: [], stats: null }
   }
 }
 
@@ -111,13 +120,6 @@ function buildSegments(
   return result
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
-async function fetchOccurrences(year: number, month: number): Promise<EventOccurrence[]> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/public/occurrences?year=${year}&month=${month}`)
-  if (!res.ok) return []
-  return res.json()
-}
-
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function PublicCalendarPage() {
   const router = useRouter()
@@ -138,11 +140,12 @@ export default function PublicCalendarPage() {
   useEffect(() => {
     const u = getUser()
     setUser(u)
-    if (u) {
-      const token = getToken()
-      if (token) fetchMyStats(token).then(setMemberStats)
-    }
-  }, [])
+    const token = getToken()
+    void fetchHomeData(today.getFullYear(), today.getMonth() + 1, token).then(({ occurrences: occ, stats }) => {
+      setOccurrences(occ)
+      setMemberStats(stats)
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function openPwModal() {
     setPwCurrent(""); setPwNew(""); setPwConfirm("")
@@ -167,12 +170,12 @@ export default function PublicCalendarPage() {
   }
 
   const load = useCallback((y: number, m: number) => {
-    fetchOccurrences(y, m).then(setOccurrences)
+    const token = getToken()
+    void fetchHomeData(y, m, token).then(({ occurrences: occ, stats }) => {
+      setOccurrences(occ)
+      setMemberStats(stats)
+    })
   }, [])
-
-  useEffect(() => {
-    load(today.getFullYear(), today.getMonth() + 1)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function prevMonth() {
     const m = month === 1 ? 12 : month - 1

@@ -124,6 +124,18 @@ async function reqMultipart<T>(path: string, formData: FormData): Promise<T> {
   return res.json()
 }
 
+export async function fetchAllMembers(): Promise<MemberRead[]> {
+  const all: MemberRead[] = []
+  let cursor: string | null = null
+  for (;;) {
+    const page = await req<CursorPage<MemberRead>>("GET", `/members${cursor ? `?cursor=${cursor}&limit=200` : `?limit=200`}`)
+    all.push(...page.items)
+    cursor = page.next_cursor
+    if (!cursor) break
+  }
+  return all
+}
+
 export const adminApi = {
   // Members
   listMembers: (cursor?: string | null, limit = 50) =>

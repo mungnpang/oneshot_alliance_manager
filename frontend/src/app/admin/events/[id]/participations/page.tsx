@@ -8,6 +8,7 @@ import Checkbox from "../../../_components/Checkbox"
 import DateInput from "../../../_components/DateInput"
 import {
   adminApi,
+  fetchAllMembers,
   type BulkRecord,
   type DuplicateRecord,
   type EventOccurrenceCreate,
@@ -85,20 +86,20 @@ function ParticipationsPageInner() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const [p, mPage, o] = await Promise.all([
-        adminApi.listParticipations(eventId).catch(() => []),
-        adminApi.listMembers(null, 50).catch(() => ({ items: [] as MemberRead[], next_cursor: null })),
+      const [p, allMembers, o] = await Promise.all([
+        adminApi.listParticipations(eventId, activeOccurrenceId).catch(() => []),
+        fetchAllMembers().catch(() => [] as MemberRead[]),
         adminApi.listOccurrences(eventId).catch(() => ({ items: [], next_cursor: null })),
       ])
       if (cancelled) return
       setParticipations(p)
-      setMembers(mPage.items)
+      setMembers(allMembers)
       setOccurrences(o.items)
     })()
     return () => {
       cancelled = true
     }
-  }, [eventId])
+  }, [eventId, activeOccurrenceId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openCreate() {
     const oid = activeOccurrenceId ?? occurrences[0]?.id
@@ -158,13 +159,13 @@ function ParticipationsPageInner() {
   }
 
   async function reloadParticipations() {
-    const [p, mPage, o] = await Promise.all([
-      adminApi.listParticipations(eventId).catch(() => []),
-      adminApi.listMembers().catch(() => ({ items: [], next_cursor: null })),
+    const [p, allMembers, o] = await Promise.all([
+      adminApi.listParticipations(eventId, activeOccurrenceId).catch(() => []),
+      fetchAllMembers().catch(() => [] as MemberRead[]),
       adminApi.listOccurrences(eventId).catch(() => ({ items: [], next_cursor: null })),
     ])
     setParticipations(p)
-    setMembers(mPage.items)
+    setMembers(allMembers)
     setOccurrences(o.items)
   }
 

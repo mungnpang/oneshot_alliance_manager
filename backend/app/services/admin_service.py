@@ -143,7 +143,6 @@ def delete_alliance(db: Session, alliance_id: int) -> None:
 def list_alliance_members(
     db: Session, alliance_id: int, cursor: str | None = None, limit: int = 50
 ) -> CursorPage:
-    get_alliance(db, alliance_id)
     query = (
         db.query(AllianceMember)
         .filter(AllianceMember.alliance_id == alliance_id)
@@ -255,7 +254,6 @@ def delete_event(db: Session, event_id: int) -> None:
 def list_occurrences(
     db: Session, event_id: int, alliance_id: int | None = None, cursor: str | None = None, limit: int = 50
 ) -> CursorPage:
-    get_event(db, event_id)
     query = (
         db.query(EventOccurrence)
         .filter(EventOccurrence.event_id == event_id)
@@ -368,15 +366,15 @@ def participation_to_read(ep: EventParticipation) -> ParticipationRead:
     )
 
 
-def list_participations(db: Session, event_id: int) -> list[ParticipationRead]:
-    get_event(db, event_id)
-    rows = (
+def list_participations(db: Session, event_id: int, occurrence_id: int | None = None) -> list[ParticipationRead]:
+    query = (
         db.query(EventParticipation)
         .options(joinedload(EventParticipation.occurrence))
         .filter(EventParticipation.event_id == event_id)
-        .order_by(EventParticipation.id)
-        .all()
     )
+    if occurrence_id is not None:
+        query = query.filter(EventParticipation.occurrence_id == occurrence_id)
+    rows = query.order_by(EventParticipation.id).all()
     return [participation_to_read(p) for p in rows]
 
 

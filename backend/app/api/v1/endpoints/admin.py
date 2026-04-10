@@ -196,8 +196,13 @@ def delete_occurrence(occurrence_id: int, db: Session = Depends(get_db), _: Memb
 # ── Event Participations ──────────────────────────────────────────────────────
 
 @router.get("/events/{event_id}/participations", response_model=list[ParticipationRead])
-def list_participations(event_id: int, db: Session = Depends(get_db), _: Member = _admin):
-    return admin_service.list_participations(db, event_id)
+def list_participations(
+    event_id: int,
+    occurrence_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: Member = _admin,
+):
+    return admin_service.list_participations(db, event_id, occurrence_id=occurrence_id)
 
 
 @router.post("/events/{event_id}/participations", response_model=ParticipationRead, status_code=201)

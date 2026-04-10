@@ -47,7 +47,8 @@
       "Bash(sed -n '249,270p' /Users/jacob/Desktop/mungnpang/frontend/src/app/admin/events/\\\\[id\\\\]/participations/page.tsx)",
       "Bash(npx tsc:*)",
       "Bash(python:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(xargs -I{} basename {})"
     ]
   }
 }

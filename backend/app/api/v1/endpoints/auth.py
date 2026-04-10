@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.exceptions import AuthException
 from app.core.security import create_access_token, decode_access_token
+from app.models.alliance import Alliance
 from app.models.alliance_member import AllianceMember
 from app.models.member import Member
 from app.schemas.auth import (
@@ -54,8 +55,13 @@ async def register(body: RegisterRequest, db: Session = Depends(get_db)):
 @router.post("/login", response_model=LoginResponse)
 async def login(body: LoginRequest, db: Session = Depends(get_db)):
     token, member = await auth_service.login(body.fid, body.password, db)
-    am = db.query(AllianceMember).filter(AllianceMember.member_id == member.id).first()
-    alliance_alias = am.alliance.alias if am else None
+    row = (
+        db.query(Alliance.alias)
+        .join(AllianceMember, AllianceMember.alliance_id == Alliance.id)
+        .filter(AllianceMember.member_id == member.id)
+        .first()
+    )
+    alliance_alias = row[0] if row else None
     user = UserData.model_validate(member)
     user.alliance_alias = alliance_alias
     return LoginResponse(access_token=token, user=user)

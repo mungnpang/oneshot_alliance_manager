@@ -71,7 +71,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const router = useRouter()
 
   function handleLogout() {
-    clearToken(); clearUser(); router.replace("/admin")
+    clearToken(); clearUser(); router.replace("/login")
   }
 
   return (
@@ -105,20 +105,19 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             gap: 16,
           }}>
             <div style={{
-              width: 100,
-              height: 100,
+              width: 120,
+              height: 120,
               borderRadius: 20,
               overflow: "hidden",
               flexShrink: 0,
-              boxShadow: `0 0 28px ${C.goldGlow}, 0 4px 24px rgba(0,0,0,0.4)`,
             }}>
-              <Image src="/alliance_logo.png" alt="logo" width={100} height={100} style={{ objectFit: "cover", width: "100%", height: "100%" }} />
+              <Image src="/alliance_logo.png" alt="logo" width={120} height={120} style={{ objectFit: "cover", width: "100%", height: "100%" }} />
             </div>
             <div style={{ textAlign: "center" }}>
               <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.02em", color: C.textBright, fontFamily: fontUiSans, lineHeight: 1.2 }}>
                 Oneshot
               </div>
-              <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textHint, fontFamily: fontUiSans, marginTop: 5 }}>
+              <div style={{ fontSize: F.xxs, letterSpacing: "0.07em", textTransform: "uppercase", color: C.goldMid, fontFamily: fontUiSans, marginTop: 5 }}>
                 Alliance Manager
               </div>
             </div>
@@ -126,7 +125,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
           {/* Nav */}
           <nav style={{ flex: 1, padding: "18px 10px" }}>
-            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textHint, padding: "0 10px", marginBottom: 10, fontFamily: fontUiSans }}>
+            <div style={{ fontSize: F.xxs, fontWeight: 600, letterSpacing: "0.07em", textTransform: "uppercase", color: C.goldMid, padding: "0 10px", marginBottom: 10, fontFamily: fontUiSans }}>
               Menu
             </div>
             {NAV.map(({ href, label, icon }) => {
@@ -162,49 +161,94 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             })}
           </nav>
 
-          {/* Footer */}
-          <div style={{ padding: "14px 10px 20px", borderTop: `1px solid ${C.goldFaint}` }}>
+        </aside>
+
+        {/* ── Main ── */}
+        <main style={{ flex: 1, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+          {/* Top bar */}
+          <div style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            gap: 10,
+            padding: "16px 40px",
+            borderBottom: `1px solid ${C.goldFaint}`,
+            background: "linear-gradient(180deg, #0d153033 0%, transparent 100%)",
+            backdropFilter: "blur(8px)",
+            position: "sticky",
+            top: 0,
+            zIndex: 5,
+          }}>
+            <Link
+              href="/"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                fontSize: 13,
+                fontFamily: fontUiSans,
+                fontWeight: 500,
+                color: C.textHint,
+                textDecoration: "none",
+                border: `1px solid ${C.goldFaint}`,
+                borderRadius: 8,
+                padding: "7px 16px",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={e => {
+                const el = e.currentTarget as HTMLElement
+                el.style.color = C.gold
+                el.style.borderColor = C.goldDim
+              }}
+              onMouseLeave={e => {
+                const el = e.currentTarget as HTMLElement
+                el.style.color = C.textHint
+                el.style.borderColor = C.goldFaint
+              }}
+            >
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Home
+            </Link>
             <button
               onClick={handleLogout}
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
-                width: "100%",
-                padding: "9px 10px",
-                borderRadius: 10,
-                fontSize: F.xs,
-                fontWeight: 500,
-                color: C.textBright,
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                transition: "all 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+                gap: 7,
+                fontSize: 13,
                 fontFamily: fontUiSans,
+                fontWeight: 500,
+                color: C.textHint,
+                background: "transparent",
+                border: `1px solid ${C.goldFaint}`,
+                borderRadius: 8,
+                padding: "7px 16px",
+                cursor: "pointer",
+                transition: "all 0.2s",
               }}
               onMouseEnter={e => {
                 const el = e.currentTarget
                 el.style.color = C.danger
-                el.style.background = "#ff606010"
+                el.style.borderColor = "#ff606044"
               }}
               onMouseLeave={e => {
                 const el = e.currentTarget
-                el.style.color = C.textBright
-                el.style.background = "transparent"
+                el.style.color = C.textHint
+                el.style.borderColor = C.goldFaint
               }}
             >
-              <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7} style={{ flexShrink: 0 }}>
+              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
                 <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               Logout
             </button>
           </div>
-        </aside>
-
-        {/* ── Main ── */}
-        <main style={{ flex: 1, padding: "36px 40px", overflowY: "auto" }}>
-          <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-            {children}
+          <div style={{ flex: 1, padding: "36px 40px" }}>
+            <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+              {children}
+            </div>
           </div>
         </main>
       </div>

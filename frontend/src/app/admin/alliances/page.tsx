@@ -205,9 +205,8 @@ export default function AlliancesPage() {
           </thead>
           <tbody>
             {alliances.map(a => (
-              <>
+              <Fragment key={a.id}>
                 <tr
-                  key={a.id}
                   onClick={() => toggleExpand(a.id)}
                   onMouseEnter={() => setHoveredAllianceId(a.id)}
                   onMouseLeave={() => setHoveredAllianceId(null)}
@@ -408,7 +407,7 @@ export default function AlliancesPage() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

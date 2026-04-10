@@ -10,6 +10,7 @@ export interface UserData {
   stove_lv_content: string | null
   avatar_image: string | null
   is_admin: boolean
+  alliance_alias: string | null
 }
 
 export interface TokenResponse {

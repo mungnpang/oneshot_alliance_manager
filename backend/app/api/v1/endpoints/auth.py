@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.exceptions import AuthException
 from app.core.security import create_access_token, decode_access_token
+from app.models.alliance_member import AllianceMember
 from app.models.member import Member
 from app.schemas.auth import (
     ChangePasswordRequest,
@@ -53,7 +54,11 @@ async def register(body: RegisterRequest, db: Session = Depends(get_db)):
 @router.post("/login", response_model=LoginResponse)
 async def login(body: LoginRequest, db: Session = Depends(get_db)):
     token, member = await auth_service.login(body.fid, body.password, db)
-    return LoginResponse(access_token=token, user=UserData.model_validate(member))
+    am = db.query(AllianceMember).filter(AllianceMember.member_id == member.id).first()
+    alliance_alias = am.alliance.alias if am else None
+    user = UserData.model_validate(member)
+    user.alliance_alias = alliance_alias
+    return LoginResponse(access_token=token, user=user)
 
 
 @router.post("/change-password", status_code=204)

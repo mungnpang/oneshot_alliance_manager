@@ -16,27 +16,13 @@ export default function AuthCard({ children }: Props) {
       {/* Page content: z-index 1 so it sits above background layers */}
       <div style={{ position: "relative", zIndex: 1, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3rem 1rem" }}>
         {/* Logo */}
-        <div className="mb-8 relative flex-shrink-0">
-          {/* Outer ring glow */}
-          <div
-            className="absolute -inset-3 rounded-full blur-xl"
-            style={{ background: "radial-gradient(circle, #d4af3740 0%, transparent 70%)" }}
-          />
-          {/* Ring decoration */}
-          <div
-            className="absolute -inset-1 rounded-full"
-            style={{
-              background: "conic-gradient(from 0deg, #d4af37, #7c5c10, #d4af37, #7c5c10, #d4af37)",
-              padding: "2px",
-            }}
-          />
+        <div className="mb-8 flex-shrink-0">
           <Image
             src="/alliance_logo.png"
             alt="Order of New Era"
-            width={120}
-            height={120}
-            className="relative rounded-full"
-            style={{ border: "3px solid #0a0d1a" }}
+            width={144}
+            height={144}
+            className="rounded-2xl"
           />
         </div>
 

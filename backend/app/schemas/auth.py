@@ -29,6 +29,7 @@ class UserData(BaseModel):
     stove_lv_content: str | None
     avatar_image: str | None
     is_admin: bool
+    alliance_alias: str | None = None
 
     model_config = {"from_attributes": True}
 

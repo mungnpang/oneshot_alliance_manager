@@ -10,6 +10,7 @@ from app.schemas.admin import (
     CursorPage, EventCreate, EventOccurrenceCreate, EventOccurrenceRead, EventOccurrenceUpdate,
     EventOccurrenceWithEventRead, EventRead, EventUpdate,
     MemberCreate, MemberRead, MemberUpdate,
+    ParticipationBulkCreateBody, ParticipationBulkCreateResponse,
     ParticipationCreate, ParticipationRead, ParticipationUpdate,
 )
 from app.services import admin_service, auth_service, screenshot_service
@@ -28,6 +29,11 @@ def list_members(
     _: Member = _admin,
 ):
     return admin_service.list_members(db, cursor=cursor, limit=min(limit, 200))
+
+
+@router.get("/members/all", response_model=list[MemberRead])
+def list_all_members(db: Session = Depends(get_db), _: Member = _admin):
+    return admin_service.list_all_members_read(db)
 
 
 @router.post("/members", response_model=MemberRead, status_code=201)
@@ -87,6 +93,11 @@ def list_alliance_members(
     _: Member = _admin,
 ):
     return admin_service.list_alliance_members(db, alliance_id, cursor=cursor, limit=min(limit, 200))
+
+
+@router.get("/alliances/{alliance_id}/members/all", response_model=list[AllianceMemberRead])
+def list_all_alliance_members(alliance_id: int, db: Session = Depends(get_db), _: Member = _admin):
+    return admin_service.list_all_alliance_members_read(db, alliance_id)
 
 
 @router.post("/alliances/{alliance_id}/members", response_model=AllianceMemberRead, status_code=201)
@@ -206,6 +217,18 @@ def list_participations(
 @router.post("/events/{event_id}/participations", response_model=ParticipationRead, status_code=201)
 def create_participation(event_id: int, body: ParticipationCreate, db: Session = Depends(get_db), _: Member = _admin):
     return admin_service.create_participation(db, event_id, body)
+
+
+@router.post("/events/{event_id}/participations/bulk", response_model=ParticipationBulkCreateResponse)
+def bulk_create_participations(
+    event_id: int,
+    body: ParticipationBulkCreateBody,
+    db: Session = Depends(get_db),
+    _: Member = _admin,
+):
+    items = [(i.member_id, i.is_participated, i.score) for i in body.items]
+    created, skipped = admin_service.bulk_create_participations(db, event_id, body.occurrence_id, items)
+    return ParticipationBulkCreateResponse(created=created, skipped=skipped)
 
 
 @router.put("/participations/{participation_id}", response_model=ParticipationRead)

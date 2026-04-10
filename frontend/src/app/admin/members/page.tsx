@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
 import AdminShell, { btn, card, gold, goldDim, input, td, th } from "../_components/AdminShell"
 import { adminApi, type MemberRead } from "@/lib/admin-api"
 import { C, F, sectionTitle } from "@/lib/theme"
@@ -65,7 +64,7 @@ export default function MembersPage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              {["FID", "Alliance", "Nickname", "Kingdom", "Lv", "Admin", "Actions"].map(h => (
+              {["FID", "Alliance", "Nickname", "Kingdom", "Admin", "Actions"].map(h => (
                 <th key={h} style={th}>{h}</th>
               ))}
             </tr>
@@ -77,9 +76,6 @@ export default function MembersPage() {
                 <td style={{ ...td, color: m.alliance_alias ? C.textBright : C.textHint }}>{m.alliance_alias ?? "—"}</td>
                 <td style={td}>{m.nickname ?? "—"}</td>
                 <td style={td}>{m.kid ?? "—"}</td>
-                <td style={{ ...td, textAlign: "center" }}>
-                  <StoveLvCell value={m.stove_lv_content} />
-                </td>
                 <td style={td}><span style={{ color: m.is_admin ? gold : "#666" }}>{m.is_admin ? "✓" : "—"}</span></td>
                 <td style={td}>
                   <button style={btn("danger")} onClick={() => deleteMember(m.id)}>Delete</button>
@@ -126,29 +122,5 @@ export default function MembersPage() {
         </div>
       )}
     </AdminShell>
-  )
-}
-
-function StoveLvCell({ value }: { value: string | null }) {
-  if (!value) return <span style={{ color: "#666" }}>—</span>
-  if (!value.startsWith("http")) {
-    const num = Number(value)
-    if (!isNaN(num)) return <span style={{ color: C.textBright }}>{value}</span>
-    return <span style={{ color: "#666" }}>—</span>
-  }
-
-  return (
-    <div style={{ display: "flex", justifyContent: "center" }}>
-      <div style={{ position: "relative", width: 32, height: 32, flexShrink: 0 }}>
-        <Image
-          src={value}
-          alt="stove lv"
-          fill
-          className="object-contain"
-          unoptimized
-          onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
-        />
-      </div>
-    </div>
   )
 }

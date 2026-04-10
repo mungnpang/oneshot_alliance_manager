@@ -34,8 +34,6 @@ class MemberRead(BaseModel):
     fid: int
     nickname: str | None
     kid: int | None
-    stove_lv: int | None
-    stove_lv_content: str | None
     avatar_image: str | None
     is_admin: bool
     created_at: datetime
@@ -52,8 +50,6 @@ class MemberCreate(BaseModel):
 class MemberUpdate(BaseModel):
     nickname: str | None = None
     kid: int | None = None
-    stove_lv: int | None = None
-    stove_lv_content: str | None = None
     avatar_image: str | None = None
     is_admin: bool | None = None
 
@@ -187,6 +183,22 @@ class ParticipationCreate(BaseModel):
     is_participated: bool = False
     score: int | None = None
     extra_info: dict[str, Any] | None = None
+
+
+class ParticipationBulkItem(BaseModel):
+    member_id: int
+    is_participated: bool = False
+    score: int | None = None
+
+
+class ParticipationBulkCreateBody(BaseModel):
+    occurrence_id: int
+    items: list[ParticipationBulkItem]
+
+
+class ParticipationBulkCreateResponse(BaseModel):
+    created: int
+    skipped: int
 
 
 class ParticipationUpdate(BaseModel):

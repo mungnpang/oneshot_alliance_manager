@@ -8,7 +8,6 @@ import Checkbox from "../../../_components/Checkbox"
 import DateInput from "../../../_components/DateInput"
 import {
   adminApi,
-  fetchAllMembers,
   type BulkRecord,
   type DuplicateRecord,
   type EventOccurrenceCreate,
@@ -88,7 +87,7 @@ function ParticipationsPageInner() {
     ;(async () => {
       const [p, allMembers, o] = await Promise.all([
         adminApi.listParticipations(eventId, activeOccurrenceId).catch(() => []),
-        fetchAllMembers().catch(() => [] as MemberRead[]),
+        adminApi.listAllMembers().catch(() => [] as MemberRead[]),
         adminApi.listOccurrences(eventId).catch(() => ({ items: [], next_cursor: null })),
       ])
       if (cancelled) return
@@ -161,7 +160,7 @@ function ParticipationsPageInner() {
   async function reloadParticipations() {
     const [p, allMembers, o] = await Promise.all([
       adminApi.listParticipations(eventId, activeOccurrenceId).catch(() => []),
-      fetchAllMembers().catch(() => [] as MemberRead[]),
+      adminApi.listAllMembers().catch(() => [] as MemberRead[]),
       adminApi.listOccurrences(eventId).catch(() => ({ items: [], next_cursor: null })),
     ])
     setParticipations(p)
@@ -174,20 +173,26 @@ function ParticipationsPageInner() {
       if (selectedMemberIds.size === 0) { setError("Please select at least one member"); return }
       const oid = form.occurrence_id ?? activeOccurrenceId ?? occurrences[0]?.id
       if (!oid) { setError("Please select an occurrence"); return }
-      let failed = 0
-      for (const mid of selectedMemberIds) {
-        try {
-          await adminApi.createParticipation(eventId, {
-            occurrence_id: oid,
+      setError("")
+      try {
+        const res = await adminApi.bulkCreateParticipationsForEvent(eventId, {
+          occurrence_id: oid,
+          items: Array.from(selectedMemberIds).map((mid) => ({
             member_id: mid,
             is_participated: form.is_participated ?? false,
             score: form.score ?? undefined,
-          })
-        } catch { failed++ }
+          })),
+        })
+        setModal(null)
+        void reloadParticipations()
+        if (res.skipped > 0 && res.created === 0) {
+          setError(`${res.skipped} skipped (already exist)`)
+        } else if (res.skipped > 0) {
+          setError(`${res.created} created, ${res.skipped} skipped (already exist)`)
+        }
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Bulk create failed")
       }
-      setModal(null)
-      void reloadParticipations()
-      if (failed > 0) setError(`${failed} record(s) failed (may already exist)`)
     } else if (modal?.type === "edit") {
       try {
         await adminApi.updateParticipation((modal as { type: "edit"; p: ParticipationRead }).p.id, {
@@ -310,19 +315,20 @@ function ParticipationsPageInner() {
     if (!confirm(`Create absent records for ${toFill.length} member(s)?`)) return
 
     setFilling(true)
-    let failed = 0
-    for (const am of toFill) {
-      try {
-        await adminApi.createParticipation(eventId, {
-          occurrence_id: activeOccurrenceId,
-          member_id: am.member_id,
-          is_participated: false,
-        })
-      } catch { failed++ }
+    try {
+      const res = await adminApi.bulkCreateParticipationsForEvent(eventId, {
+        occurrence_id: activeOccurrenceId,
+        items: toFill.map((am) => ({ member_id: am.member_id, is_participated: false })),
+      })
+      void reloadParticipations()
+      if (res.skipped > 0 && res.created === 0) {
+        setError(`${res.skipped} skipped (already exist)`)
+      } else if (res.skipped > 0) {
+        setError(`${res.created} created, ${res.skipped} skipped`)
+      }
+    } finally {
+      setFilling(false)
     }
-    setFilling(false)
-    void reloadParticipations()
-    if (failed > 0) setError(`${failed} record(s) failed (may already exist)`)
   }
 
   async function deleteP(pid: number) {
@@ -813,9 +819,6 @@ function ParticipationsPageInner() {
                           <span style={{ color: checked ? C.textBright : C.textMuted, fontSize: F.xs, flex: 1, fontWeight: checked ? 500 : 400 }}>
                             {m.nickname ?? `fid:${m.fid}`}
                           </span>
-                          {m.stove_lv != null && (
-                            <span style={{ color: C.textHint, fontSize: F.xxs }}>Lv.{m.stove_lv}</span>
-                          )}
                         </div>
                       )
                     })}

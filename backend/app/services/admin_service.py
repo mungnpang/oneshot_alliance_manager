@@ -12,7 +12,7 @@ from app.models.event_occurrence import EventOccurrence
 from app.models.event_participation import EventParticipation
 from app.models.member import Member
 from app.schemas.admin import (
-    AllianceCreate, AllianceMemberAdd, AllianceMemberUpdate, AllianceUpdate,
+    AllianceCreate, AllianceMemberAdd, AllianceMemberRead, AllianceMemberUpdate, AllianceUpdate,
     CursorPage, EventCreate, EventOccurrenceCreate, EventOccurrenceUpdate, EventUpdate,
     MemberRead, MemberUpdate,
     ParticipationCreate, ParticipationRead, ParticipationUpdate,
@@ -40,8 +40,6 @@ def _member_read_from_loaded(m: Member, alliance_alias: str | None) -> MemberRea
         fid=m.fid,
         nickname=m.nickname,
         kid=m.kid,
-        stove_lv=m.stove_lv,
-        stove_lv_content=m.stove_lv_content,
         avatar_image=m.avatar_image,
         is_admin=m.is_admin,
         created_at=m.created_at,
@@ -79,24 +77,20 @@ def list_members(db: Session, cursor: str | None = None, limit: int = 50) -> Cur
     rows = query.limit(limit + 1).all()
     has_more = len(rows) > limit
     rows = rows[:limit]
-    items = [
-        MemberRead(
-            id=m.id,
-            fid=m.fid,
-            nickname=m.nickname,
-            kid=m.kid,
-            stove_lv=m.stove_lv,
-            stove_lv_content=m.stove_lv_content,
-            avatar_image=m.avatar_image,
-            is_admin=m.is_admin,
-            created_at=m.created_at,
-            updated_at=m.updated_at,
-            alliance_alias=alias,
-        )
-        for m, alias in rows
-    ]
+    items = [_member_read_from_loaded(m, alias) for m, alias in rows]
     next_cursor = encode_cursor({"id": rows[-1][0].id}) if has_more else None
     return CursorPage(items=items, next_cursor=next_cursor)
+
+
+def list_all_members_read(db: Session) -> list[MemberRead]:
+    rows = (
+        db.query(Member, Alliance.alias)
+        .outerjoin(AllianceMember, AllianceMember.member_id == Member.id)
+        .outerjoin(Alliance, Alliance.id == AllianceMember.alliance_id)
+        .order_by(Member.id)
+        .all()
+    )
+    return [_member_read_from_loaded(m, alias) for m, alias in rows]
 
 
 def get_member(db: Session, member_id: int) -> Member:
@@ -173,6 +167,17 @@ def list_alliance_members(
     rows = rows[:limit]
     next_cursor = encode_cursor({"id": rows[-1].id}) if has_more else None
     return CursorPage(items=rows, next_cursor=next_cursor)
+
+
+def list_all_alliance_members_read(db: Session, alliance_id: int) -> list[AllianceMemberRead]:
+    get_alliance(db, alliance_id)
+    rows = (
+        db.query(AllianceMember)
+        .filter(AllianceMember.alliance_id == alliance_id)
+        .order_by(AllianceMember.id)
+        .all()
+    )
+    return [AllianceMemberRead.model_validate(r) for r in rows]
 
 
 def add_alliance_member(db: Session, alliance_id: int, data: AllianceMemberAdd) -> AllianceMember:
@@ -424,6 +429,53 @@ def create_participation(db: Session, event_id: int, data: ParticipationCreate) 
     if not loaded:
         raise OneshotException(500, "Failed to load participation record")
     return participation_to_read(loaded)
+
+
+def bulk_create_participations(
+    db: Session,
+    event_id: int,
+    occurrence_id: int,
+    items: list[tuple[int, bool, int | None]],
+) -> tuple[int, int]:
+    """items: (member_id, is_participated, score). Returns (created, skipped)."""
+    get_event(db, event_id)
+    occ = get_occurrence(db, occurrence_id)
+    if occ.event_id != event_id:
+        raise OneshotException(400, "Invalid event occurrence")
+
+    by_member: dict[int, EventParticipation] = {
+        ep.member_id: ep
+        for ep in db.query(EventParticipation)
+        .filter(EventParticipation.occurrence_id == occurrence_id)
+        .all()
+    }
+    created = 0
+    skipped = 0
+    seen: set[int] = set()
+    for member_id, is_participated, score in items:
+        if member_id in seen:
+            skipped += 1
+            continue
+        seen.add(member_id)
+        if member_id in by_member:
+            skipped += 1
+            continue
+        ep = EventParticipation(
+            event_id=event_id,
+            occurrence_id=occurrence_id,
+            member_id=member_id,
+            is_participated=is_participated,
+            score=score,
+        )
+        db.add(ep)
+        by_member[member_id] = ep
+        created += 1
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise OneshotException(409, "Bulk participation create failed (conflict)")
+    return created, skipped
 
 
 def get_participation(db: Session, participation_id: int) -> EventParticipation:

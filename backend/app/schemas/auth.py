@@ -25,8 +25,6 @@ class UserData(BaseModel):
     fid: int
     nickname: str | None
     kid: int | None
-    stove_lv: int | None
-    stove_lv_content: str | None
     avatar_image: str | None
     is_admin: bool
     alliance_alias: str | None = None

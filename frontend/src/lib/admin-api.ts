@@ -4,14 +4,13 @@ import { messageFromErrorBody } from "./api-error"
 
 export interface MemberRead {
   id: number; fid: number; nickname: string | null; kid: number | null
-  stove_lv: number | null; stove_lv_content: string | null; avatar_image: string | null
+  avatar_image: string | null
   is_admin: boolean; created_at: string; updated_at: string
   /** Alliance alias; null if not in any alliance */
   alliance_alias: string | null
 }
 export interface MemberUpdate {
-  nickname?: string | null; kid?: number | null; stove_lv?: number | null
-  stove_lv_content?: string | null; avatar_image?: string | null; is_admin?: boolean
+  nickname?: string | null; kid?: number | null; avatar_image?: string | null; is_admin?: boolean
 }
 
 export interface AllianceRead {
@@ -59,6 +58,16 @@ export interface ParticipationRead {
 export interface ParticipationCreate {
   occurrence_id: number; member_id: number; is_participated?: boolean; score?: number | null; extra_info?: Record<string, unknown> | null
 }
+export interface ParticipationBulkItem {
+  member_id: number
+  is_participated?: boolean
+  score?: number | null
+}
+export interface ParticipationBulkCreateBody {
+  occurrence_id: number
+  items: ParticipationBulkItem[]
+}
+export interface ParticipationBulkCreateResponse { created: number; skipped: number }
 export interface ParticipationUpdate { is_participated?: boolean; score?: number | null; extra_info?: Record<string, unknown> | null }
 
 export interface CursorPage<T> { items: T[]; next_cursor: string | null }
@@ -124,22 +133,11 @@ async function reqMultipart<T>(path: string, formData: FormData): Promise<T> {
   return res.json()
 }
 
-export async function fetchAllMembers(): Promise<MemberRead[]> {
-  const all: MemberRead[] = []
-  let cursor: string | null = null
-  for (;;) {
-    const page: CursorPage<MemberRead> = await req<CursorPage<MemberRead>>("GET", `/members${cursor ? `?cursor=${cursor}&limit=200` : `?limit=200`}`)
-    all.push(...page.items)
-    cursor = page.next_cursor
-    if (!cursor) break
-  }
-  return all
-}
-
 export const adminApi = {
   // Members
   listMembers: (cursor?: string | null, limit = 50) =>
     req<CursorPage<MemberRead>>("GET", `/members${cursor ? `?cursor=${cursor}&limit=${limit}` : `?limit=${limit}`}`),
+  listAllMembers: () => req<MemberRead[]>("GET", "/members/all"),
   registerMember: (fid: number) => req<MemberRead>("POST", "/members", { fid }),
   getMember: (id: number) => req<MemberRead>("GET", `/members/${id}`),
   updateMember: (id: number, body: MemberUpdate) => req<MemberRead>("PUT", `/members/${id}`, body),
@@ -153,6 +151,8 @@ export const adminApi = {
   deleteAlliance: (id: number) => req<void>("DELETE", `/alliances/${id}`),
   listAllianceMembers: (allianceId: number, cursor?: string | null, limit = 50) =>
     req<CursorPage<AllianceMemberRead>>("GET", `/alliances/${allianceId}/members${cursor ? `?cursor=${cursor}&limit=${limit}` : `?limit=${limit}`}`),
+  listAllAllianceMembers: (allianceId: number) =>
+    req<AllianceMemberRead[]>("GET", `/alliances/${allianceId}/members/all`),
   addAllianceMember: (allianceId: number, body: AllianceMemberAdd) =>
     req<AllianceMemberRead>("POST", `/alliances/${allianceId}/members`, body),
   updateAllianceMember: (allianceId: number, memberId: number, body: AllianceMemberUpdate) =>
@@ -194,6 +194,8 @@ export const adminApi = {
   },
   createParticipation: (eventId: number, body: ParticipationCreate) =>
     req<ParticipationRead>("POST", `/events/${eventId}/participations`, body),
+  bulkCreateParticipationsForEvent: (eventId: number, body: ParticipationBulkCreateBody) =>
+    req<ParticipationBulkCreateResponse>("POST", `/events/${eventId}/participations/bulk`, body),
   updateParticipation: (id: number, body: ParticipationUpdate) =>
     req<ParticipationRead>("PUT", `/participations/${id}`, body),
   deleteParticipation: (id: number) => req<void>("DELETE", `/participations/${id}`),

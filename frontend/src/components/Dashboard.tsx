@@ -112,37 +112,12 @@ export default function Dashboard({ onLogout }: Props) {
                   <span className="font-bold" style={{ color: "#f5e6c0", fontSize: F.xl }}>
                     {user.nickname ?? "—"}
                   </span>
-                  {user.stove_lv != null && (
-                    <span
-                      className="px-2 py-0.5 rounded"
-                      style={{ background: "#1a2448", color: C.gold, border: `1px solid ${C.goldDim}`, fontSize: F.xs }}
-                    >
-                      Lv.{user.stove_lv}
-                    </span>
-                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <InfoRow label="FID" value={String(user.fid)} />
                   <InfoRow label="Kingdom" value={user.kid != null ? `#${user.kid}` : "—"} />
                 </div>
-
-                {/* Stove Level Image */}
-                {user.stove_lv_content && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <span style={{ color: "#a89060", fontSize: F.xs }}>Stove</span>
-                    <div className="relative" style={{ width: 28, height: 28 }}>
-                      <Image
-                        src={user.stove_lv_content}
-                        alt="stove level"
-                        fill
-                        className="object-contain"
-                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
-                        unoptimized
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>

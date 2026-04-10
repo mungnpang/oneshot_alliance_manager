@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import AdminShell, { card, gold } from "../_components/AdminShell"
-import { adminApi, fetchAllMembers, type AllianceRead, type EventOccurrenceWithEvent, type EventRead, type MemberRead } from "@/lib/admin-api"
+import { adminApi, type AllianceRead, type EventOccurrenceWithEvent, type EventRead, type MemberRead } from "@/lib/admin-api"
 import { C, F, cardTitle, fontUiSans, sectionTitle } from "@/lib/theme"
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -90,7 +90,7 @@ export default function AdminDashboard() {
   }, [])
 
   useEffect(() => {
-    fetchAllMembers().then(setMembers).catch(() => {})
+    adminApi.listAllMembers().then(setMembers).catch(() => {})
     adminApi.listAlliances().then(setAlliances).catch(() => {})
     adminApi.listEvents().then(setEvents).catch(() => {})
     loadOccurrences(today.getFullYear(), today.getMonth() + 1)

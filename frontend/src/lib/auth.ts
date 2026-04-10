@@ -6,8 +6,6 @@ export interface UserData {
   fid: number
   nickname: string | null
   kid: number | null
-  stove_lv: number | null
-  stove_lv_content: string | null
   avatar_image: string | null
   is_admin: boolean
   alliance_alias: string | null

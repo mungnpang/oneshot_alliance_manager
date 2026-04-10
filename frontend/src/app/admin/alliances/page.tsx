@@ -1,7 +1,6 @@
 "use client"
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react"
-import Image from "next/image"
 import AdminShell, { btn, card, gold, goldDim, input, td, th } from "../_components/AdminShell"
 import { AdminSelect } from "../_components/AdminSelect"
 import {
@@ -11,7 +10,6 @@ import {
   type AllianceRank,
   type AllianceRead,
   type AllianceUpdate,
-  type CursorPage,
   type MemberRead,
 } from "@/lib/admin-api"
 import { C, F, sectionTitle } from "@/lib/theme"
@@ -52,27 +50,11 @@ export default function AlliancesPage() {
   useEffect(() => { load() }, [])
 
   async function loadAllMembers(): Promise<MemberRead[]> {
-    const all: MemberRead[] = []
-    let cursor: string | null = null
-    for (;;) {
-      const page: CursorPage<MemberRead> = await adminApi.listMembers(cursor, 200).catch(() => ({ items: [] as MemberRead[], next_cursor: null }))
-      all.push(...page.items)
-      cursor = page.next_cursor
-      if (!cursor) break
-    }
-    return all
+    return adminApi.listAllMembers().catch(() => [] as MemberRead[])
   }
 
   async function loadAllAllianceMembers(allianceId: number): Promise<AllianceMemberRead[]> {
-    const all: AllianceMemberRead[] = []
-    let cursor: string | null = null
-    for (;;) {
-      const page: CursorPage<AllianceMemberRead> = await adminApi.listAllianceMembers(allianceId, cursor).catch(() => ({ items: [] as AllianceMemberRead[], next_cursor: null }))
-      all.push(...page.items)
-      cursor = page.next_cursor
-      if (!cursor) break
-    }
-    return all
+    return adminApi.listAllAllianceMembers(allianceId).catch(() => [] as AllianceMemberRead[])
   }
 
   async function load() {
@@ -318,16 +300,15 @@ export default function AlliancesPage() {
                                   {!isCollapsed && (
                                     <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                                       <colgroup>
-                                        <col style={{ width: "14%" }} />
-                                        <col style={{ width: "26%" }} />
-                                        <col style={{ width: "11%" }} />
+                                        <col style={{ width: "16%" }} />
+                                        <col style={{ width: "30%" }} />
                                         <col style={{ width: "12%" }} />
-                                        <col style={{ width: "11%" }} />
-                                        <col style={{ width: "26%" }} />
+                                        <col style={{ width: "12%" }} />
+                                        <col style={{ width: "30%" }} />
                                       </colgroup>
                                       <tbody>
                                         <tr>
-                                          {["FID", "Nickname", "Rank", "Lv", "Admin", "Actions"].map((h) => (
+                                          {["FID", "Nickname", "Rank", "Admin", "Actions"].map((h) => (
                                             <th key={h} scope="col" style={h === "Actions" ? { ...subTh, textAlign: "center" } : subTh}>{h}</th>
                                           ))}
                                         </tr>
@@ -340,9 +321,6 @@ export default function AlliancesPage() {
                                                 {m?.nickname ?? "—"}
                                               </td>
                                               <td style={subTd}>{am.rank}</td>
-                                              <td style={{ ...subTd, textAlign: "center" }}>
-                                                <StoveLvCell value={m?.stove_lv_content ?? null} />
-                                              </td>
                                               <td style={subTd}>
                                                 <span style={{ color: m?.is_admin ? gold : "#555" }}>{m?.is_admin ? "✓" : "—"}</span>
                                               </td>
@@ -496,22 +474,5 @@ export default function AlliancesPage() {
         </div>
       )}
     </AdminShell>
-  )
-}
-
-function StoveLvCell({ value }: { value: string | null }) {
-  if (!value) return <span style={{ color: "#555" }}>—</span>
-  if (!value.startsWith("http")) {
-    const num = Number(value)
-    if (!isNaN(num)) return <span style={{ color: C.textBright }}>{value}</span>
-    return <span style={{ color: "#555" }}>—</span>
-  }
-  return (
-    <div style={{ display: "flex", justifyContent: "center" }}>
-      <div style={{ position: "relative", width: 28, height: 28, flexShrink: 0 }}>
-        <Image src={value} alt="stove lv" fill className="object-contain" unoptimized
-          onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none" }} />
-      </div>
-    </div>
   )
 }

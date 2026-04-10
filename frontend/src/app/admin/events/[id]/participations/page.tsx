@@ -87,7 +87,7 @@ function ParticipationsPageInner() {
     ;(async () => {
       const [p, mPage, o] = await Promise.all([
         adminApi.listParticipations(eventId).catch(() => []),
-        adminApi.listMembers().catch(() => ({ items: [], next_cursor: null })),
+        adminApi.listMembers(null, 50).catch(() => ({ items: [] as MemberRead[], next_cursor: null })),
         adminApi.listOccurrences(eventId).catch(() => ({ items: [], next_cursor: null })),
       ])
       if (cancelled) return
@@ -106,7 +106,7 @@ function ParticipationsPageInner() {
 
     const occ = occurrences.find(o => o.id === oid)
     if (occ?.alliance_id) {
-      const page = await adminApi.listAllianceMembers(occ.alliance_id, null, 200).catch(() => ({ items: [], next_cursor: null }))
+      const page = await adminApi.listAllianceMembers(occ.alliance_id, null, 100).catch(() => ({ items: [], next_cursor: null }))
       setAllianceMemberIds(page.items.map(am => am.member_id))
     } else {
       setAllianceMemberIds(members.map(m => m.id))

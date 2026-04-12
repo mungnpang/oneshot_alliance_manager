@@ -9,7 +9,7 @@ from app.schemas.admin import (
     BulkParticipationRequest, BulkParticipationResponse, ParseScreenshotResponse,
     CursorPage, EventCreate, EventOccurrenceCreate, EventOccurrenceRead, EventOccurrenceUpdate,
     EventOccurrenceWithEventRead, EventRead, EventUpdate,
-    MemberCreate, MemberRead, MemberUpdate,
+    LeaderboardEntry, MemberCreate, MemberRead, MemberUpdate,
     ParticipationBulkCreateBody, ParticipationBulkCreateResponse,
     ParticipationCreate, ParticipationRead, ParticipationUpdate,
 )
@@ -241,6 +241,17 @@ def update_participation(participation_id: int, body: ParticipationUpdate, db: S
 @router.delete("/participations/{participation_id}", status_code=204)
 def delete_participation(participation_id: int, db: Session = Depends(get_db), _: Member = _admin):
     admin_service.delete_participation(db, participation_id)
+
+
+# ── Leaderboard ───────────────────────────────────────────────────────────────
+
+@router.get("/leaderboard", response_model=list[LeaderboardEntry])
+def get_leaderboard(
+    alliance_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: Member = _admin,
+):
+    return admin_service.get_leaderboard(db, alliance_id=alliance_id)
 
 
 # ── Screenshot OCR ────────────────────────────────────────────────────────────

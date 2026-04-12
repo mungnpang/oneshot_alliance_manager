@@ -72,6 +72,14 @@ export interface ParticipationUpdate { is_participated?: boolean; score?: number
 
 export interface CursorPage<T> { items: T[]; next_cursor: string | null }
 
+export interface LeaderboardEntry {
+  member_id: number
+  nickname: string | null
+  event_id: number
+  count: number
+  avg_score: number | null
+}
+
 // ── Screenshot OCR ────────────────────────────────────────────────────────────
 export interface ParsedMember {
   raw_nickname: string
@@ -199,6 +207,10 @@ export const adminApi = {
   updateParticipation: (id: number, body: ParticipationUpdate) =>
     req<ParticipationRead>("PUT", `/participations/${id}`, body),
   deleteParticipation: (id: number) => req<void>("DELETE", `/participations/${id}`),
+
+  // Leaderboard
+  listLeaderboard: (allianceId?: number | null) =>
+    req<LeaderboardEntry[]>("GET", `/leaderboard${allianceId != null ? `?alliance_id=${allianceId}` : ""}`),
 
   // Screenshot OCR
   parseScreenshots: (occurrenceId: number, files: File[]): Promise<ParseScreenshotResponse> => {

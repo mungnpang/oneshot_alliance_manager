@@ -258,3 +258,11 @@ class ParticipationRead(BaseModel):
     occurrence_label: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class LeaderboardEntry(BaseModel):
+    member_id: int
+    nickname: str | None
+    event_id: int
+    count: int
+    avg_score: float | None

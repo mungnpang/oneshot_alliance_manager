@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 import calendar
 
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -14,7 +15,7 @@ from app.models.member import Member
 from app.schemas.admin import (
     AllianceCreate, AllianceMemberAdd, AllianceMemberRead, AllianceMemberUpdate, AllianceUpdate,
     CursorPage, EventCreate, EventOccurrenceCreate, EventOccurrenceUpdate, EventUpdate,
-    MemberRead, MemberUpdate,
+    LeaderboardEntry, MemberRead, MemberUpdate,
     ParticipationCreate, ParticipationRead, ParticipationUpdate,
     decode_cursor, encode_cursor,
 )
@@ -505,3 +506,41 @@ def delete_participation(db: Session, participation_id: int) -> None:
     ep = get_participation(db, participation_id)
     db.delete(ep)
     db.commit()
+
+
+# ── Leaderboard ───────────────────────────────────────────────────────────────
+
+def get_leaderboard(db: Session, alliance_id: int | None = None) -> list[LeaderboardEntry]:
+    query = (
+        db.query(
+            EventParticipation.member_id,
+            Member.nickname,
+            EventParticipation.event_id,
+            func.count(EventParticipation.id).label("cnt"),
+            func.avg(EventParticipation.score).label("avg_score"),
+        )
+        .join(Member, Member.id == EventParticipation.member_id)
+        .filter(EventParticipation.is_participated == True)  # noqa: E712
+    )
+    if alliance_id is not None:
+        query = query.join(
+            AllianceMember,
+            (AllianceMember.member_id == EventParticipation.member_id)
+            & (AllianceMember.alliance_id == alliance_id),
+        )
+    rows = (
+        query
+        .group_by(EventParticipation.member_id, Member.nickname, EventParticipation.event_id)
+        .order_by(EventParticipation.member_id, EventParticipation.event_id)
+        .all()
+    )
+    return [
+        LeaderboardEntry(
+            member_id=r.member_id,
+            nickname=r.nickname,
+            event_id=r.event_id,
+            count=r.cnt,
+            avg_score=float(r.avg_score) if r.avg_score is not None else None,
+        )
+        for r in rows
+    ]

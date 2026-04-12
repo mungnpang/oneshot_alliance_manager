@@ -12,6 +12,7 @@ import {
   type EventOccurrenceRead,
   type EventRead,
   type EventUpdate,
+  type LeaderboardEntry,
 } from "@/lib/admin-api"
 import { formatDateOnlyKo, isoDatetimeToDateInputValue } from "@/lib/date-format"
 import {
@@ -55,9 +56,16 @@ export default function EventsPage() {
   const [occForm, setOccForm] = useState<OccurrenceFormState>({ startDate: "", endDate: "", note: "" })
   const [occSaveError, setOccSaveError] = useState("")
 
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+
   async function refreshEventList() {
     const data = await adminApi.listEvents().catch(() => [])
     setEvents(data)
+  }
+
+  async function refreshLeaderboard(allianceId: number | null) {
+    const data = await adminApi.listLeaderboard(allianceId).catch(() => [] as LeaderboardEntry[])
+    setLeaderboard(data)
   }
 
   useEffect(() => {
@@ -70,11 +78,13 @@ export default function EventsPage() {
       if (!cancelled) {
         setEvents(eventsData)
         setAlliances(alliancesData)
-        if (alliancesData.length > 0) setSelectedAllianceId(alliancesData[0].id)
+        const firstAllianceId = alliancesData.length > 0 ? alliancesData[0].id : null
+        setSelectedAllianceId(firstAllianceId)
+        void refreshLeaderboard(firstAllianceId)
       }
     })()
     return () => { cancelled = true }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggleExpand(eventId: number) {
     if (expandedId === eventId) {
@@ -191,6 +201,28 @@ export default function EventsPage() {
     await refreshEventList()
   }
 
+  // ── Leaderboard pivot ─────────────────────────────────────────────────────
+  type MemberRow = {
+    member_id: number
+    nickname: string | null
+    stats: Map<number, { count: number; avg_score: number | null }>
+    total_count: number
+    total_score: number
+  }
+  const leaderboardRows: MemberRow[] = (() => {
+    const map = new Map<number, MemberRow>()
+    for (const e of leaderboard) {
+      if (!map.has(e.member_id)) {
+        map.set(e.member_id, { member_id: e.member_id, nickname: e.nickname, stats: new Map(), total_count: 0, total_score: 0 })
+      }
+      const row = map.get(e.member_id)!
+      row.stats.set(e.event_id, { count: e.count, avg_score: e.avg_score })
+      row.total_count += e.count
+      if (e.avg_score != null) row.total_score += e.avg_score * e.count
+    }
+    return Array.from(map.values()).sort((a, b) => b.total_score - a.total_score)
+  })()
+
   const subTh: React.CSSProperties = { ...th, fontSize: F.xxs, padding: "10px 14px" }
   const subTd: React.CSSProperties = { ...td, fontSize: F.xs, padding: "10px 14px", borderBottom: `1px solid #c9a84c0e` }
 
@@ -218,9 +250,11 @@ export default function EventsPage() {
             options={alliances.map(a => ({ value: a.id, label: `${a.alias} · ${a.name}` }))}
             value={selectedAllianceId}
             onChange={v => {
-              setSelectedAllianceId(v as number | null)
+              const aid = v as number | null
+              setSelectedAllianceId(aid)
               setExpandedId(null)
               setOccurrences([])
+              void refreshLeaderboard(aid)
             }}
             placeholder="Select alliance…"
             width={220}
@@ -469,6 +503,76 @@ export default function EventsPage() {
           </div>
         </div>
       )}
+
+      {/* Leaderboard */}
+      <div style={{ marginTop: 48 }}>
+        <h3 style={{ color: C.goldMid, fontSize: 13, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 16 }}>
+          Leaderboard
+          {selectedAllianceId && alliances.find(a => a.id === selectedAllianceId) && (
+            <span style={{ color: C.textHint, fontWeight: 400, marginLeft: 8 }}>
+              · {alliances.find(a => a.id === selectedAllianceId)!.alias}
+            </span>
+          )}
+        </h3>
+
+        {leaderboardRows.length === 0 ? (
+          <div style={{ ...card, padding: "28px 32px", color: C.textHint, fontSize: F.xs }}>
+            No participation records yet.
+          </div>
+        ) : (
+          <div style={{ ...card, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto", minWidth: 600 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...th, textAlign: "center", minWidth: 48, width: 48 }}>#</th>
+                  <th style={{ ...th, textAlign: "center", minWidth: 140 }}>Member</th>
+                  {events.map(e => (
+                    <th key={e.id} style={{ ...th, textAlign: "center", minWidth: 90 }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                        {e.thumbnail_url && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={`/images/${e.thumbnail_url}`} alt="" style={{ width: 20, height: 20, objectFit: "contain" }} />
+                        )}
+                        <span style={{ fontSize: F.xxs, wordBreak: "keep-all", whiteSpace: "normal" }}>
+                          {e.name}
+                        </span>
+                      </div>
+                    </th>
+                  ))}
+                  <th style={{ ...th, textAlign: "center", minWidth: 80 }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leaderboardRows.map((row, idx) => (
+                  <tr key={row.member_id} style={{ background: idx % 2 === 0 ? "transparent" : "#ffffff04" }}>
+                    <td style={{ ...td, color: C.textHint, fontSize: F.xxs, textAlign: "center" }}>
+                      {idx + 1}
+                    </td>
+                    <td style={{ ...td, fontWeight: 500, textAlign: "center" }}>
+                      {row.nickname ?? `#${row.member_id}`}
+                    </td>
+                    {events.map(e => {
+                      const stat = row.stats.get(e.id)
+                      return (
+                        <td key={e.id} style={{ ...td, textAlign: "center" }}>
+                          {stat ? (
+                            <span style={{ color: gold, fontWeight: 600, fontSize: F.xs }}>{stat.count}</span>
+                          ) : (
+                            <span style={{ color: "#ffffff18", fontSize: F.xxs }}>—</span>
+                          )}
+                        </td>
+                      )
+                    })}
+                    <td style={{ ...td, textAlign: "center" }}>
+                      <span style={{ color: C.goldMid, fontWeight: 700, fontSize: F.xs }}>{row.total_count}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {occurrenceModal && (
         <div style={{ position: "fixed", inset: 0, background: "#000a", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 55 }}>

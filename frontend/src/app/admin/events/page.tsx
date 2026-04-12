@@ -218,7 +218,8 @@ export default function EventsPage() {
       const row = map.get(e.member_id)!
       row.stats.set(e.event_id, { count: e.count, avg_score: e.avg_score })
       row.total_count += e.count
-      if (e.avg_score != null) row.total_score += e.avg_score * e.count
+      const weight = events.find(ev => ev.id === e.event_id)?.eval_weight ?? 1
+      row.total_score += weight * e.count
     }
     return Array.from(map.values()).sort((a, b) => b.total_score - a.total_score)
   })()
@@ -564,7 +565,9 @@ export default function EventsPage() {
                       )
                     })}
                     <td style={{ ...td, textAlign: "center" }}>
-                      <span style={{ color: C.goldMid, fontWeight: 700, fontSize: F.xs }}>{row.total_count}</span>
+                      <span style={{ color: C.goldMid, fontWeight: 700, fontSize: F.xs }}>
+                        {row.total_score % 1 === 0 ? row.total_score : row.total_score.toFixed(1)}
+                      </span>
                     </td>
                   </tr>
                 ))}

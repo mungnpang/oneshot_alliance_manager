@@ -12,7 +12,7 @@ import {
   type EventOccurrenceRead,
   type EventRead,
   type EventUpdate,
-  type LeaderboardEntry,
+  type LeaderboardResponse,
 } from "@/lib/admin-api"
 import { formatDateOnlyKo, isoDatetimeToDateInputValue } from "@/lib/date-format"
 import {
@@ -56,7 +56,7 @@ export default function EventsPage() {
   const [occForm, setOccForm] = useState<OccurrenceFormState>({ startDate: "", endDate: "", note: "" })
   const [occSaveError, setOccSaveError] = useState("")
 
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [leaderboard, setLeaderboard] = useState<LeaderboardResponse>({ members: [], entries: [] })
 
   async function refreshEventList() {
     const data = await adminApi.listEvents().catch(() => [])
@@ -64,7 +64,7 @@ export default function EventsPage() {
   }
 
   async function refreshLeaderboard(allianceId: number | null) {
-    const data = await adminApi.listLeaderboard(allianceId).catch(() => [] as LeaderboardEntry[])
+    const data = await adminApi.listLeaderboard(allianceId).catch(() => ({ members: [], entries: [] } as LeaderboardResponse))
     setLeaderboard(data)
   }
 
@@ -211,11 +211,14 @@ export default function EventsPage() {
   }
   const leaderboardRows: MemberRow[] = (() => {
     const map = new Map<number, MemberRow>()
-    for (const e of leaderboard) {
-      if (!map.has(e.member_id)) {
-        map.set(e.member_id, { member_id: e.member_id, nickname: e.nickname, stats: new Map(), total_count: 0, total_score: 0 })
-      }
-      const row = map.get(e.member_id)!
+    // Initialize with ALL members so zero-participation members are included
+    for (const m of leaderboard.members) {
+      map.set(m.member_id, { member_id: m.member_id, nickname: m.nickname, stats: new Map(), total_count: 0, total_score: 0 })
+    }
+    // Fill in stats from entries
+    for (const e of leaderboard.entries) {
+      const row = map.get(e.member_id)
+      if (!row) continue
       row.stats.set(e.event_id, { count: e.count, avg_score: e.avg_score })
       row.total_count += e.count
       const weight = events.find(ev => ev.id === e.event_id)?.eval_weight ?? 1

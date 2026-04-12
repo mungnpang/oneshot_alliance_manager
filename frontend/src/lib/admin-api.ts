@@ -79,6 +79,8 @@ export interface LeaderboardEntry {
   count: number
   avg_score: number | null
 }
+export interface LeaderboardMember { member_id: number; nickname: string | null }
+export interface LeaderboardResponse { members: LeaderboardMember[]; entries: LeaderboardEntry[] }
 
 // ── Screenshot OCR ────────────────────────────────────────────────────────────
 export interface ParsedMember {
@@ -210,7 +212,7 @@ export const adminApi = {
 
   // Leaderboard
   listLeaderboard: (allianceId?: number | null) =>
-    req<LeaderboardEntry[]>("GET", `/leaderboard${allianceId != null ? `?alliance_id=${allianceId}` : ""}`),
+    req<LeaderboardResponse>("GET", `/leaderboard${allianceId != null ? `?alliance_id=${allianceId}` : ""}`),
 
   // Screenshot OCR
   parseScreenshots: (occurrenceId: number, files: File[]): Promise<ParseScreenshotResponse> => {

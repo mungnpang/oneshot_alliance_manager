@@ -15,7 +15,7 @@ from app.models.member import Member
 from app.schemas.admin import (
     AllianceCreate, AllianceMemberAdd, AllianceMemberRead, AllianceMemberUpdate, AllianceUpdate,
     CursorPage, EventCreate, EventOccurrenceCreate, EventOccurrenceUpdate, EventUpdate,
-    LeaderboardEntry, MemberRead, MemberUpdate,
+    LeaderboardEntry, LeaderboardMember, LeaderboardResponse, MemberRead, MemberUpdate,
     ParticipationCreate, ParticipationRead, ParticipationUpdate,
     decode_cursor, encode_cursor,
 )
@@ -510,37 +510,44 @@ def delete_participation(db: Session, participation_id: int) -> None:
 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
 
-def get_leaderboard(db: Session, alliance_id: int | None = None) -> list[LeaderboardEntry]:
-    query = (
+def get_leaderboard(db: Session, alliance_id: int | None = None) -> LeaderboardResponse:
+    # 1) All members (optionally filtered by alliance)
+    member_query = db.query(Member.id, Member.nickname)
+    if alliance_id is not None:
+        member_query = member_query.join(
+            AllianceMember, AllianceMember.member_id == Member.id
+        ).filter(AllianceMember.alliance_id == alliance_id)
+    member_rows = member_query.order_by(Member.id).all()
+    member_ids = [r.id for r in member_rows]
+    members = [LeaderboardMember(member_id=r.id, nickname=r.nickname) for r in member_rows]
+
+    if not member_ids:
+        return LeaderboardResponse(members=[], entries=[])
+
+    # 2) Participation stats for those members only
+    stat_rows = (
         db.query(
             EventParticipation.member_id,
-            Member.nickname,
             EventParticipation.event_id,
             func.count(EventParticipation.id).label("cnt"),
             func.avg(EventParticipation.score).label("avg_score"),
         )
-        .join(Member, Member.id == EventParticipation.member_id)
-        .filter(EventParticipation.is_participated == True)  # noqa: E712
-    )
-    if alliance_id is not None:
-        query = query.join(
-            AllianceMember,
-            (AllianceMember.member_id == EventParticipation.member_id)
-            & (AllianceMember.alliance_id == alliance_id),
+        .filter(
+            EventParticipation.member_id.in_(member_ids),
+            EventParticipation.is_participated == True,  # noqa: E712
         )
-    rows = (
-        query
-        .group_by(EventParticipation.member_id, Member.nickname, EventParticipation.event_id)
+        .group_by(EventParticipation.member_id, EventParticipation.event_id)
         .order_by(EventParticipation.member_id, EventParticipation.event_id)
         .all()
     )
-    return [
+    entries = [
         LeaderboardEntry(
             member_id=r.member_id,
-            nickname=r.nickname,
+            nickname=None,  # not needed; resolved from members list
             event_id=r.event_id,
             count=r.cnt,
             avg_score=float(r.avg_score) if r.avg_score is not None else None,
         )
-        for r in rows
+        for r in stat_rows
     ]
+    return LeaderboardResponse(members=members, entries=entries)

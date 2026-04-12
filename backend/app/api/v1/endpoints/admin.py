@@ -9,7 +9,7 @@ from app.schemas.admin import (
     BulkParticipationRequest, BulkParticipationResponse, ParseScreenshotResponse,
     CursorPage, EventCreate, EventOccurrenceCreate, EventOccurrenceRead, EventOccurrenceUpdate,
     EventOccurrenceWithEventRead, EventRead, EventUpdate,
-    LeaderboardEntry, MemberCreate, MemberRead, MemberUpdate,
+    LeaderboardResponse, MemberCreate, MemberRead, MemberUpdate,
     ParticipationBulkCreateBody, ParticipationBulkCreateResponse,
     ParticipationCreate, ParticipationRead, ParticipationUpdate,
 )
@@ -245,7 +245,7 @@ def delete_participation(participation_id: int, db: Session = Depends(get_db), _
 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
 
-@router.get("/leaderboard", response_model=list[LeaderboardEntry])
+@router.get("/leaderboard", response_model=LeaderboardResponse)
 def get_leaderboard(
     alliance_id: int | None = None,
     db: Session = Depends(get_db),

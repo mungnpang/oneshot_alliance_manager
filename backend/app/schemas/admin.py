@@ -266,3 +266,13 @@ class LeaderboardEntry(BaseModel):
     event_id: int
     count: int
     avg_score: float | None
+
+
+class LeaderboardMember(BaseModel):
+    member_id: int
+    nickname: str | None
+
+
+class LeaderboardResponse(BaseModel):
+    members: list[LeaderboardMember]
+    entries: list[LeaderboardEntry]
